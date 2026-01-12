@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package ratelimit.v1;
+option go_package = "example.com/distributed-rate-limiter/gen/ratelimitv1;ratelimitv1";
+
+service RateLimitService {
+  rpc Allow(AllowRequest) returns (AllowResponse);
+}
+
+enum Algorithm {
+  ALGO_UNSPECIFIED = 0;
+  TOKEN_BUCKET = 1;
+  SLIDING_WINDOW = 2;
+}
+
+message AllowRequest {
+  string key = 1;          
+  string rule = 2;         // "1000rps" or "1000/1s"
+  Algorithm algorithm = 3; // optional; inferred from rule if unspecified
+  string namespace = 4;    
+  int64 cost = 5;          // default 1
+}
+
+message AllowResponse {
+  bool allowed = 1;
+  int64 remaining = 2;
+  int64 retry_after_ms = 3;
+  string algorithm_used = 4;
+}

@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: ratelimiter
+    dns_sd_configs:
+      - names: ["ratelimiter"]
+        type: A
+        port: 2112

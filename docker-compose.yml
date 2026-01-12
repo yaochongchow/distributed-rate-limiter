@@ -1,0 +1,74 @@
+services:
+  redis-1:
+    image: redis:7
+    command: ["redis-server","--port","7001","--bind","0.0.0.0","--protected-mode","no","--cluster-enabled","yes","--cluster-config-file","nodes.conf","--cluster-node-timeout","5000","--appendonly","yes","--cluster-announce-hostname","redis-1","--cluster-announce-port","7001"]
+  redis-2:
+    image: redis:7
+    command: ["redis-server","--port","7002","--bind","0.0.0.0","--protected-mode","no","--cluster-enabled","yes","--cluster-config-file","nodes.conf","--cluster-node-timeout","5000","--appendonly","yes","--cluster-announce-hostname","redis-2","--cluster-announce-port","7002"]
+  redis-3:
+    image: redis:7
+    command: ["redis-server","--port","7003","--bind","0.0.0.0","--protected-mode","no","--cluster-enabled","yes","--cluster-config-file","nodes.conf","--cluster-node-timeout","5000","--appendonly","yes","--cluster-announce-hostname","redis-3","--cluster-announce-port","7003"]
+  redis-4:
+    image: redis:7
+    command: ["redis-server","--port","7004","--bind","0.0.0.0","--protected-mode","no","--cluster-enabled","yes","--cluster-config-file","nodes.conf","--cluster-node-timeout","5000","--appendonly","yes","--cluster-announce-hostname","redis-4","--cluster-announce-port","7004"]
+  redis-5:
+    image: redis:7
+    command: ["redis-server","--port","7005","--bind","0.0.0.0","--protected-mode","no","--cluster-enabled","yes","--cluster-config-file","nodes.conf","--cluster-node-timeout","5000","--appendonly","yes","--cluster-announce-hostname","redis-5","--cluster-announce-port","7005"]
+  redis-6:
+    image: redis:7
+    command: ["redis-server","--port","7006","--bind","0.0.0.0","--protected-mode","no","--cluster-enabled","yes","--cluster-config-file","nodes.conf","--cluster-node-timeout","5000","--appendonly","yes","--cluster-announce-hostname","redis-6","--cluster-announce-port","7006"]
+
+  redis-cluster-init:
+    image: redis:7
+    depends_on: [redis-1, redis-2, redis-3, redis-4, redis-5, redis-6]
+    entrypoint: ["/bin/sh","-c"]
+    command: >
+      "sleep 2 &&
+       redis-cli --cluster create
+       redis-1:7001 redis-2:7002 redis-3:7003 redis-4:7004 redis-5:7005 redis-6:7006
+       --cluster-replicas 1 --cluster-yes &&
+       echo 'redis cluster ready'"
+    restart: "no"
+
+  ratelimiter:
+    build: .
+    depends_on: [redis-cluster-init]
+    environment:
+      - REDIS_ADDRS=redis-1:7001,redis-2:7002,redis-3:7003,redis-4:7004,redis-5:7005,redis-6:7006
+      - GRPC_ADDR=0.0.0.0:50051
+      - METRICS_ADDR=0.0.0.0:2112
+    restart: unless-stopped
+
+  envoy:
+    image: envoyproxy/envoy:v1.30-latest
+    depends_on: [ratelimiter]
+    volumes:
+      - ./deploy/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "50051:50051"
+      - "9901:9901"
+
+  webui:
+    build: .
+    depends_on: [envoy]
+    command: ["/webui"]
+    environment:
+      - HTTP_ADDR=0.0.0.0:8080
+      - GRPC_TARGET=envoy:50051
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9091:9090"
+    depends_on: [ratelimiter]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    depends_on: [prometheus]

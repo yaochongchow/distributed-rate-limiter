@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Distributed Rate Limiter</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 40px auto; }
+    input, select { padding: 8px; margin: 6px 0; width: 100%; }
+    button { padding: 10px 14px; margin-top: 10px; cursor: pointer; }
+    pre { background: #f6f8fa; padding: 12px; border-radius: 8px; overflow: auto; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Rate Limiter UI</h1>
+
+  <label>Namespace</label>
+  <input id="ns" value="api" />
+
+  <label>Key</label>
+  <input id="key" value="user123" />
+
+  <div class="row">
+    <div>
+      <label>Rule</label>
+      <input id="rule" value="1000rps" />
+      <small>Examples: <code>1000rps</code> or <code>1000/1s</code></small>
+    </div>
+    <div>
+      <label>Algorithm</label>
+      <select id="algo">
+        <option value="TOKEN_BUCKET">TOKEN_BUCKET</option>
+        <option value="SLIDING_WINDOW">SLIDING_WINDOW</option>
+      </select>
+      <label>Cost</label>
+      <input id="cost" value="1" />
+    </div>
+  </div>
+
+  <button onclick="send()">Allow</button>
+
+  <h3>Response</h3>
+  <pre id="out">{}</pre>
+
+<script>
+async function send() {
+  const body = {
+    namespace: document.getElementById('ns').value,
+    key: document.getElementById('key').value,
+    rule: document.getElementById('rule').value,
+    algorithm: document.getElementById('algo').value,
+    cost: Number(document.getElementById('cost').value || 1)
+  };
+
+  const res = await fetch('/api/allow', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+
+  const json = await res.json();
+  document.getElementById('out').textContent = JSON.stringify(json, null, 2);
+}
+</script>
+</body>
+</html>
