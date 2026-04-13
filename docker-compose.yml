@@ -21,18 +21,32 @@ services:
   redis-cluster-init:
     image: redis:7
     depends_on: [redis-1, redis-2, redis-3, redis-4, redis-5, redis-6]
-    entrypoint: ["/bin/sh","-c"]
-    command: >
-      "sleep 2 &&
-       redis-cli --cluster create
-       redis-1:7001 redis-2:7002 redis-3:7003 redis-4:7004 redis-5:7005 redis-6:7006
-       --cluster-replicas 1 --cluster-yes &&
-       echo 'redis cluster ready'"
+    entrypoint:
+      - /bin/sh
+      - -eu
+      - -c
+      - |
+        until redis-cli -h redis-1 -p 7001 ping >/dev/null 2>&1; do echo "waiting for redis-1:7001"; sleep 1; done
+        until redis-cli -h redis-2 -p 7002 ping >/dev/null 2>&1; do echo "waiting for redis-2:7002"; sleep 1; done
+        until redis-cli -h redis-3 -p 7003 ping >/dev/null 2>&1; do echo "waiting for redis-3:7003"; sleep 1; done
+        until redis-cli -h redis-4 -p 7004 ping >/dev/null 2>&1; do echo "waiting for redis-4:7004"; sleep 1; done
+        until redis-cli -h redis-5 -p 7005 ping >/dev/null 2>&1; do echo "waiting for redis-5:7005"; sleep 1; done
+        until redis-cli -h redis-6 -p 7006 ping >/dev/null 2>&1; do echo "waiting for redis-6:7006"; sleep 1; done
+        if redis-cli -h redis-1 -p 7001 cluster info 2>/dev/null | grep -q 'cluster_state:ok'; then
+          echo "redis cluster already ready"
+          exit 0
+        fi
+        yes yes | redis-cli --cluster create \
+          redis-1:7001 redis-2:7002 redis-3:7003 redis-4:7004 redis-5:7005 redis-6:7006 \
+          --cluster-replicas 1
+        echo "redis cluster ready"
     restart: "no"
 
   ratelimiter:
     build: .
-    depends_on: [redis-cluster-init]
+    depends_on:
+      redis-cluster-init:
+        condition: service_completed_successfully
     environment:
       - REDIS_ADDRS=redis-1:7001,redis-2:7002,redis-3:7003,redis-4:7004,redis-5:7005,redis-6:7006
       - GRPC_ADDR=0.0.0.0:50051
@@ -45,18 +59,18 @@ services:
     volumes:
       - ./deploy/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
     ports:
-      - "50051:50051"
-      - "9901:9901"
+      - "${ENVOY_GRPC_PORT:-50051}:50051"
+      - "${ENVOY_ADMIN_PORT:-9901}:9901"
 
   webui:
     build: .
     depends_on: [envoy]
-    command: ["/webui"]
+    entrypoint: ["/webui"]
     environment:
       - HTTP_ADDR=0.0.0.0:8080
       - GRPC_TARGET=envoy:50051
     ports:
-      - "8080:8080"
+      - "${WEBUI_PORT:-8080}:8080"
     restart: unless-stopped
 
   prometheus:
@@ -64,11 +78,11 @@ services:
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - "9091:9090"
+      - "${PROMETHEUS_PORT:-9091}:9090"
     depends_on: [ratelimiter]
 
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     depends_on: [prometheus]

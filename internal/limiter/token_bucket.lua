@@ -12,6 +12,10 @@ local now_ms = tonumber(ARGV[3])
 local ttl_ms = tonumber(ARGV[4])
 local cost = tonumber(ARGV[5])
 
+if capacity == nil or capacity <= 0 or refill == nil or refill <= 0 or cost == nil or cost <= 0 then
+  return { 0, 0, -1 }
+end
+
 local data = redis.call("HMGET", key, "tokens", "last_ms")
 local tokens = tonumber(data[1])
 local last_ms = tonumber(data[2])

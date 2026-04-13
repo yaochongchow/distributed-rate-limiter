@@ -1,66 +1,2468 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Distributed Rate Limiter</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 820px; margin: 40px auto; }
-    input, select { padding: 8px; margin: 6px 0; width: 100%; }
-    button { padding: 10px 14px; margin-top: 10px; cursor: pointer; }
-    pre { background: #f6f8fa; padding: 12px; border-radius: 8px; overflow: auto; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    :root {
+      --bg: #f6f4ef;
+      --surface: #ffffff;
+      --surface-soft: #f1ede5;
+      --surface-accent: #eef7f4;
+      --text: #1f2933;
+      --muted: #5f6c76;
+      --line: #d8e0e6;
+      --accent: #1f6f5f;
+      --accent-strong: #155144;
+      --accent-soft: rgba(31, 111, 95, 0.12);
+      --blue: #356fd8;
+      --amber: #a66214;
+      --ok-bg: #e7f6ef;
+      --ok-text: #166245;
+      --warn-bg: #fff1e4;
+      --warn-text: #9a4d12;
+      --danger-bg: #fdecec;
+      --danger-text: #a62b2b;
+      --shadow: 0 18px 42px rgba(31, 41, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top right, rgba(31, 111, 95, 0.06), transparent 30%),
+        linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
+    }
+
+    main {
+      width: min(1120px, calc(100% - 24px));
+      margin: 28px auto 44px;
+      display: grid;
+      gap: 20px;
+    }
+
+    .hero,
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 28px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .card {
+      padding: 22px;
+    }
+
+    .eyebrow {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      letter-spacing: -0.03em;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4.8vw, 3.3rem);
+      line-height: 1.02;
+    }
+
+    p,
+    .section-copy,
+    .field-note,
+    .preview,
+    .subtle,
+    .response-copy,
+    .metric-subtle,
+    .table-note,
+    .chart-help {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .hero p {
+      max-width: 70ch;
+      margin: 0;
+    }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .arch-step {
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      position: relative;
+    }
+
+    .arch-step strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .arch-step::after {
+      content: "→";
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 1.1rem;
+    }
+
+    .arch-step:last-child::after {
+      display: none;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+      gap: 20px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 20px;
+    }
+
+    .section-head {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .scenario-grid,
+    .link-row,
+    .metric-grid,
+    .chart-grid,
+    .copy-grid,
+    .sim-grid,
+    .info-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .scenario-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-bottom: 18px;
+    }
+
+    .info-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .scenario,
+    .metric-card,
+    .chart-card,
+    .mini-card,
+    .history-card,
+    .sim-card,
+    .disclosure {
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+    }
+
+    .scenario {
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+    }
+
+    .scenario.active {
+      border-color: rgba(31, 111, 95, 0.36);
+      background: var(--surface-accent);
+      box-shadow: inset 0 0 0 1px rgba(31, 111, 95, 0.12);
+    }
+
+    .scenario strong,
+    .metric-card strong,
+    .mini-card strong,
+    .history-card strong,
+    .sim-card strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .scenario small {
+      color: var(--muted);
+      display: block;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .disclosure {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .disclosure summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 16px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      font-weight: 700;
+    }
+
+    .disclosure summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .disclosure summary span {
+      color: var(--muted);
+      font-weight: 400;
+      font-size: 0.95rem;
+    }
+
+    .disclosure summary::after {
+      content: "+";
+      color: var(--accent);
+      font-size: 1.2rem;
+      line-height: 1;
+      flex: none;
+    }
+
+    .disclosure[open] summary::after {
+      content: "-";
+    }
+
+    .disclosure-body {
+      padding: 0 18px 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    form {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid,
+    .builder-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field label {
+      font-weight: 700;
+    }
+
+    input,
+    select,
+    button,
+    textarea {
+      font: inherit;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 13px 14px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #7fb5a9;
+      box-shadow: 0 0 0 4px rgba(31, 111, 95, 0.12);
+    }
+
+    code,
+    pre,
+    .history-table,
+    .history-table th,
+    .history-table td {
+      font-family: "SFMono-Regular", Menlo, Monaco, monospace;
+    }
+
+    .field-note code,
+    .item code,
+    .copy-box code,
+    .link-chip code,
+    .metric-card code,
+    .preview code,
+    .response-copy code {
+      padding: 0.12em 0.35em;
+      border-radius: 6px;
+      background: rgba(31, 41, 51, 0.06);
+    }
+
+    .builder-card {
+      padding: 16px;
+      border-radius: 18px;
+      background: var(--surface-accent);
+      border: 1px solid rgba(31, 111, 95, 0.18);
+      display: grid;
+      gap: 14px;
+    }
+
+    .builder-note {
+      font-size: 0.94rem;
+    }
+
+    .validation {
+      display: none;
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--danger-bg);
+      border: 1px solid rgba(166, 43, 43, 0.16);
+      color: var(--danger-text);
+    }
+
+    .validation.visible {
+      display: block;
+    }
+
+    .validation ul {
+      margin: 8px 0 0 18px;
+      padding: 0;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .primary,
+    .secondary {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .primary:hover {
+      background: var(--accent-strong);
+    }
+
+    .secondary {
+      background: var(--surface-soft);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .secondary:hover {
+      background: #ebe5db;
+    }
+
+    .status {
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .list {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .item {
+      padding: 14px;
+      border-radius: 14px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+    }
+
+    .item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .badge.allowed {
+      background: var(--ok-bg);
+      color: var(--ok-text);
+    }
+
+    .badge.denied {
+      background: var(--warn-bg);
+      color: var(--warn-text);
+    }
+
+    pre,
+    .copy-box {
+      margin: 0;
+      padding: 16px;
+      border-radius: 16px;
+      background: #1f2933;
+      color: #f4f7f9;
+      overflow: auto;
+      line-height: 1.55;
+      font-size: 0.94rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .copy-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 16px;
+    }
+
+    .copy-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .response-summary {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+    }
+
+    .response-detail,
+    .redis-key {
+      margin-top: 14px;
+    }
+
+    .summary-card {
+      background:
+        radial-gradient(circle at top right, rgba(31, 111, 95, 0.12), transparent 32%),
+        linear-gradient(180deg, #fcfbf8 0%, #f4efe6 100%);
+      border-color: rgba(31, 111, 95, 0.16);
+    }
+
+    .summary-shell {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(31, 111, 95, 0.12);
+    }
+
+    .summary-kicker,
+    .sim-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      width: fit-content;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .summary-kicker {
+      background: rgba(31, 111, 95, 0.12);
+      color: var(--accent-strong);
+    }
+
+    .summary-preview {
+      padding: 16px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid rgba(31, 111, 95, 0.12);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .summary-preview .preview {
+      color: var(--text);
+    }
+
+    .summary-meta {
+      display: grid;
+      gap: 10px;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 0.88rem;
+    }
+
+    .history-table th,
+    .history-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .history-table th {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .history-empty {
+      margin-top: 12px;
+      color: var(--muted);
+    }
+
+    .link-row {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .link-chip {
+      display: block;
+      text-decoration: none;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      background: var(--surface-soft);
+    }
+
+    .link-chip strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .metric-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 16px;
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 8px;
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .metric-subtle {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.9rem;
+    }
+
+    .chart-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 16px;
+    }
+
+    .chart-card.wide {
+      grid-column: span 2;
+    }
+
+    .chart-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .chart-card h3 {
+      font-size: 1.05rem;
+      margin-bottom: 2px;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .legend-dot.accent {
+      background: var(--accent);
+    }
+
+    .legend-dot.blue {
+      background: var(--blue);
+    }
+
+    .legend-dot.amber {
+      background: var(--amber);
+    }
+
+    .chart-frame {
+      position: relative;
+      width: 100%;
+      height: 290px;
+      border-radius: 12px;
+      background: #fbfcfd;
+      border: 1px solid var(--line);
+      overflow: hidden;
+      margin-top: 12px;
+    }
+
+    .chart-frame svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .chart-frame.history-chart {
+      height: 260px;
+    }
+
+    .chart-frame.large-chart {
+      height: 340px;
+    }
+
+    .chart-empty {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      color: var(--muted);
+      font-size: 0.92rem;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .chart-meta {
+      margin-top: 8px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .chart-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .chart-stat {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #faf8f3;
+      border: 1px solid var(--line);
+    }
+
+    .chart-stat strong {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+
+    .chart-help {
+      margin-top: 8px;
+      font-size: 0.9rem;
+    }
+
+    .chart-tooltip {
+      position: absolute;
+      display: none;
+      min-width: 160px;
+      max-width: min(240px, calc(100% - 16px));
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(31, 41, 51, 0.96);
+      color: #f4f7f9;
+      box-shadow: 0 12px 24px rgba(31, 41, 51, 0.2);
+      pointer-events: none;
+      z-index: 2;
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    .chart-tooltip.visible {
+      display: block;
+    }
+
+    .chart-tooltip strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .tooltip-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tooltip-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      display: inline-block;
+      flex: none;
+    }
+
+    .sim-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 8px;
+    }
+
+    .simulator-card {
+      background:
+        linear-gradient(180deg, #1d2c38 0%, #223746 100%);
+      border-color: rgba(12, 19, 26, 0.28);
+      color: #eef4f7;
+    }
+
+    .simulator-card .section-copy,
+    .simulator-card .subtle,
+    .simulator-card .timeline-note {
+      color: rgba(238, 244, 247, 0.76);
+    }
+
+    .simulator-shell {
+      display: grid;
+      gap: 14px;
+    }
+
+    .sim-kicker {
+      background: rgba(255, 255, 255, 0.12);
+      color: #dfeaed;
+    }
+
+    .sim-card {
+      display: grid;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.12);
+      color: #f5f8fa;
+    }
+
+    .sim-card .subtle {
+      font-size: 0.92rem;
+    }
+
+    .sim-card code {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    .timeline-note {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .muted-pill {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    @media (max-width: 980px) {
+      .architecture,
+      .metric-grid,
+      .chart-grid,
+      .link-row,
+      .copy-grid,
+      .scenario-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 860px) {
+      .layout,
+      .grid,
+      .builder-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      main {
+        width: min(100% - 16px, 1120px);
+        margin-top: 16px;
+      }
+
+      .hero,
+      .card {
+        padding: 18px;
+      }
+
+      .architecture,
+      .metric-grid,
+      .chart-grid,
+      .link-row,
+      .copy-grid,
+      .scenario-grid,
+      .sim-grid,
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-card.wide {
+        grid-column: auto;
+      }
+
+      .chart-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .arch-step::after {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Rate Limiter UI</h1>
+  <main>
+    <section class="hero">
+      <div class="eyebrow">Distributed Rate Limiter</div>
+      <h1>Submit a request and review the rate-limit decision.</h1>
+      <p>
+        This interface submits requests through the HTTP gateway, forwards them through Envoy and gRPC,
+        and returns a Redis-backed rate-limit decision. The page also includes live operational data
+        from Prometheus and direct host links to Grafana, Prometheus, and Envoy.
+      </p>
+      <div class="architecture">
+        <div class="arch-step">
+          <strong>1. Browser</strong>
+          Define the request and submit it from this page.
+        </div>
+        <div class="arch-step">
+          <strong>2. Web UI</strong>
+          The HTTP gateway converts the request into a gRPC call.
+        </div>
+        <div class="arch-step">
+          <strong>3. Envoy</strong>
+          Envoy forwards gRPC traffic to the rate limiter service.
+        </div>
+        <div class="arch-step">
+          <strong>4. Rate Limiter</strong>
+          The service parses the rule and selects the algorithm.
+        </div>
+        <div class="arch-step">
+          <strong>5. Redis</strong>
+          Redis stores shared counters and returns the final decision.
+        </div>
+      </div>
+    </section>
 
-  <label>Namespace</label>
-  <input id="ns" value="api" />
+    <section class="info-grid">
+      <details class="disclosure">
+        <summary>
+          What These Options Mean
+          <span>Field definitions for the request form.</span>
+        </summary>
+        <div class="disclosure-body">
+          <div class="list">
+            <div class="item">
+              <strong><code>namespace</code></strong>
+              Keeps unrelated traffic from sharing the same rate limit.
+            </div>
+            <div class="item">
+              <strong><code>key</code></strong>
+              Identifies the client or entity subject to the rate limit.
+            </div>
+            <div class="item">
+              <strong><code>rule</code></strong>
+              Defines the limit as either a refill rate or a requests-per-window threshold.
+            </div>
+            <div class="item">
+              <strong><code>algorithm</code></strong>
+              Selects token bucket or sliding window. <code>AUTO</code> derives the algorithm from the rule format.
+            </div>
+            <div class="item">
+              <strong><code>cost</code></strong>
+              Applies a multi-unit charge when a single request should consume additional budget.
+            </div>
+          </div>
+        </div>
+      </details>
 
-  <label>Key</label>
-  <input id="key" value="user123" />
+      <details class="disclosure">
+        <summary>
+          Algorithm Comparison
+          <span>When to choose token bucket versus sliding window.</span>
+        </summary>
+        <div class="disclosure-body">
+          <div class="list">
+            <div class="item">
+              <strong>Token bucket</strong>
+              Smoother and burst-friendly. This is a strong choice for general API throughput control.
+            </div>
+            <div class="item">
+              <strong>Sliding window</strong>
+              Stricter and more exact within a time window. This is a strong choice for login, OTP, or abuse protection.
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
 
-  <div class="row">
-    <div>
-      <label>Rule</label>
-      <input id="rule" value="1000rps" />
-      <small>Examples: <code>1000rps</code> or <code>1000/1s</code></small>
-    </div>
-    <div>
-      <label>Algorithm</label>
-      <select id="algo">
-        <option value="TOKEN_BUCKET">TOKEN_BUCKET</option>
-        <option value="SLIDING_WINDOW">SLIDING_WINDOW</option>
-      </select>
-      <label>Cost</label>
-      <input id="cost" value="1" />
-    </div>
-  </div>
+    <section class="layout">
+      <section class="card">
+        <div class="section-head">
+          <h2>Request</h2>
+          <div class="section-copy">Select a scenario, refine the rule in the builder, and submit the request.</div>
+        </div>
 
-  <button onclick="send()">Allow</button>
+        <div class="scenario-grid" id="scenarioGrid">
+          <button class="scenario" type="button" data-scenario="token" onclick="applyScenario('token')">
+            <strong>Per-user API quota</strong>
+            Steady token-bucket control for a normal API consumer.
+            <small>Recommended when short bursts should be allowed without exceeding the long-term rate.</small>
+          </button>
+          <button class="scenario" type="button" data-scenario="window" onclick="applyScenario('window')">
+            <strong>Login protection</strong>
+            Sliding-window enforcement for sensitive actions like authentication.
+            <small>Recommended when a strict cap is required inside an exact time window.</small>
+          </button>
+          <button class="scenario" type="button" data-scenario="heavy" onclick="applyScenario('heavy')">
+            <strong>Heavy report generation</strong>
+            Multi-unit request costing for expensive jobs.
+            <small>Recommended when one operation should consume more capacity than a standard request.</small>
+          </button>
+        </div>
 
-  <h3>Response</h3>
-  <pre id="out">{}</pre>
+        <div class="builder-card">
+          <div>
+            <h3>Rule Builder</h3>
+            <div class="builder-note">Use the builder to generate a valid rule string. The raw rule field stays editable for direct input.</div>
+          </div>
+          <div class="builder-grid">
+            <div class="field">
+              <label for="builderMode">Builder mode</label>
+              <select id="builderMode" onchange="updateRuleFromBuilder()">
+                <option value="TOKEN_BUCKET">TOKEN_BUCKET</option>
+                <option value="SLIDING_WINDOW">SLIDING_WINDOW</option>
+              </select>
+            </div>
+            <div class="field" id="builderRateField">
+              <label for="builderRate">Rate</label>
+              <input id="builderRate" value="20" inputmode="numeric" oninput="updateRuleFromBuilder()" />
+              <div class="field-note">Requests per second for token bucket rules.</div>
+            </div>
+            <div class="field" id="builderLimitField" style="display:none;">
+              <label for="builderLimit">Limit</label>
+              <input id="builderLimit" value="5" inputmode="numeric" oninput="updateRuleFromBuilder()" />
+              <div class="field-note">Maximum number of requests in the window.</div>
+            </div>
+            <div class="field" id="builderWindowField" style="display:none;">
+              <label for="builderWindow">Window</label>
+              <input id="builderWindow" value="10s" oninput="updateRuleFromBuilder()" />
+              <div class="field-note">Window duration such as <code>10s</code>, <code>1m</code>, or <code>500ms</code>.</div>
+            </div>
+          </div>
+        </div>
 
-<script>
-async function send() {
-  const body = {
-    namespace: document.getElementById('ns').value,
-    key: document.getElementById('key').value,
-    rule: document.getElementById('rule').value,
-    algorithm: document.getElementById('algo').value,
-    cost: Number(document.getElementById('cost').value || 1)
-  };
+        <form onsubmit="send(event)">
+          <div class="grid">
+            <div class="field">
+              <label for="ns">Namespace</label>
+              <input id="ns" value="api" oninput="updatePreview()" />
+              <div class="field-note">Separates one traffic group from another, such as <code>api</code> or <code>checkout</code>.</div>
+            </div>
+            <div class="field">
+              <label for="key">Key</label>
+              <input id="key" value="user123" oninput="updatePreview()" />
+              <div class="field-note">Identifies the client being limited, such as a user ID, tenant, or IP address.</div>
+            </div>
+          </div>
 
-  const res = await fetch('/api/allow', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
-  });
+          <div class="grid">
+            <div class="field">
+              <label for="rule">Rule</label>
+              <input id="rule" value="20rps" oninput="handleRuleInput()" />
+              <div class="field-note">Supported formats: <code>20rps</code> for token bucket and <code>5/10s</code> for sliding window.</div>
+            </div>
+            <div class="field">
+              <label for="algo">Algorithm</label>
+              <select id="algo" onchange="updatePreview()">
+                <option value="AUTO">AUTO (infer from rule)</option>
+                <option value="TOKEN_BUCKET">TOKEN_BUCKET</option>
+                <option value="SLIDING_WINDOW">SLIDING_WINDOW</option>
+              </select>
+              <div class="field-note">Keep this on <code>AUTO</code> in most cases. The service infers the appropriate algorithm from the rule format.</div>
+            </div>
+          </div>
 
-  const json = await res.json();
-  document.getElementById('out').textContent = JSON.stringify(json, null, 2);
-}
-</script>
+          <div class="field">
+            <label for="cost">Cost</label>
+            <input id="cost" value="1" inputmode="numeric" oninput="updatePreview()" />
+            <div class="field-note">Applies a multi-unit charge when a single request should consume additional budget.</div>
+          </div>
+
+          <div id="validationBox" class="validation">
+            <strong>Validation review</strong>
+            <ul id="validationList"></ul>
+          </div>
+
+          <div class="actions">
+            <button id="submitBtn" class="primary" type="submit">Send Allow Request</button>
+            <div id="status" class="status">Ready.</div>
+          </div>
+        </form>
+      </section>
+
+      <section class="stack">
+        <section class="card summary-card">
+          <div class="section-head">
+            <h3>Request Summary</h3>
+          </div>
+          <div class="summary-shell">
+            <div class="summary-kicker">Active Request</div>
+            <div class="summary-preview">
+              <div id="preview" class="preview"></div>
+            </div>
+            <div class="summary-meta">
+              <div class="muted-pill" id="effectiveAlgoPill">Effective algorithm: awaiting input.</div>
+              <div id="redisKeyPreview" class="item redis-key">
+                <strong>Redis key preview</strong>
+                The computed Redis key will appear once the request is valid enough to infer an algorithm.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card simulator-card">
+          <div class="section-head">
+            <h3>Algorithm Simulator</h3>
+            <div class="section-copy">These two cards compare the active request under the current algorithm and the closest counterpart of the alternate algorithm.</div>
+          </div>
+          <div class="simulator-shell">
+            <div class="sim-kicker">Side-by-Side Comparison</div>
+            <div id="simulatorGrid" class="sim-grid"></div>
+          </div>
+        </section>
+      </section>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Response</h2>
+        <div id="resultBadge" class="badge">No request sent yet</div>
+      </div>
+      <div class="response-copy">
+        <p><code>allowed</code> indicates whether the request passed. <code>remaining</code> shows the available budget after evaluation. <code>retry_after_ms</code> indicates how long to wait following a denial.</p>
+      </div>
+      <div id="responseSummary" class="response-summary">
+        Submit a request to generate a plain-language interpretation of the service response.
+      </div>
+      <div id="denialAnalysis" class="item response-detail">
+        <strong>Why this result occurred</strong>
+        Submit a request to review validation issues, acceptance details, or denial reasoning.
+      </div>
+      <pre id="out">{
+  "tip": "Press \"Send Allow Request\" to call the service."
+}</pre>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>API Examples</h2>
+        <div class="section-copy">These examples update with the current form values and can be copied directly into scripts, tests, or terminal sessions.</div>
+      </div>
+      <div class="copy-grid">
+        <div class="mini-card">
+          <strong>JSON payload</strong>
+          <div id="jsonExample" class="copy-box">{}</div>
+          <div class="copy-actions">
+            <button class="secondary" type="button" onclick="copyExample('json')">Copy JSON payload</button>
+          </div>
+        </div>
+        <div class="mini-card">
+          <strong>cURL request</strong>
+          <div id="curlExample" class="copy-box">curl ...</div>
+          <div class="copy-actions">
+            <button class="secondary" type="button" onclick="copyExample('curl')">Copy cURL command</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Recent Requests</h2>
+        <div class="section-copy">The last few requests submitted from this page are listed here for quick comparison.</div>
+      </div>
+      <div class="history-card">
+        <strong>Request timeline</strong>
+        <div class="table-note">Local requests from this page are plotted as events. Hover over a point to inspect the exact request and outcome.</div>
+        <div id="requestTimelineChart" class="chart-frame history-chart"></div>
+        <div id="requestTimelineMeta" class="chart-meta">No local requests have been submitted from this page yet.</div>
+      </div>
+      <div class="table-note">This history is stored locally in the browser for this page.</div>
+      <div id="historyEmpty" class="history-empty">No requests have been submitted from this page yet.</div>
+      <table id="historyTable" class="history-table" style="display:none;">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Namespace</th>
+            <th>Key</th>
+            <th>Rule</th>
+            <th>Decision</th>
+            <th>Remaining</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Observability</h2>
+        <div class="section-copy">Live metrics are streamed from Prometheus. Direct host links are included below.</div>
+      </div>
+
+      <div class="link-row">
+        <a id="grafanaLink" class="link-chip" target="_blank" rel="noreferrer">
+          <strong>Grafana</strong>
+          View dashboards and panel exploration on the host.
+        </a>
+        <a id="prometheusLink" class="link-chip" target="_blank" rel="noreferrer">
+          <strong>Prometheus</strong>
+          Inspect raw queries and current target health.
+        </a>
+        <a id="envoyLink" class="link-chip" target="_blank" rel="noreferrer">
+          <strong>Envoy Admin</strong>
+          Review listener and upstream details on the host.
+        </a>
+        <div class="link-chip">
+          <strong>gRPC endpoint</strong>
+          <code id="grpcHost">localhost:50051</code>
+        </div>
+      </div>
+
+      <div class="metric-grid">
+        <div class="metric-card">
+          <strong>Total request rate</strong>
+          <span id="requestRateValue" class="metric-value">--</span>
+          <span class="metric-subtle">Combined request throughput across the rate limiter service.</span>
+        </div>
+        <div class="metric-card">
+          <strong>Allowed rate</strong>
+          <span id="allowedRateValue" class="metric-value">--</span>
+          <span class="metric-subtle">Requests per second currently being accepted.</span>
+        </div>
+        <div class="metric-card">
+          <strong>Denied rate</strong>
+          <span id="deniedRateValue" class="metric-value">--</span>
+          <span class="metric-subtle">Requests per second currently being rejected.</span>
+        </div>
+        <div class="metric-card">
+          <strong>P95 latency</strong>
+          <span id="latencyValue" class="metric-value">--</span>
+          <span id="targetsValue" class="metric-subtle">Awaiting Prometheus data.</span>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-top">
+            <div>
+              <h3>Request rate</h3>
+              <div class="subtle">Last 10 minutes, refreshed every 5 seconds.</div>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-dot accent"></span>Total requests</span>
+            </div>
+          </div>
+          <div id="requestRateChart" class="chart-frame"></div>
+          <div class="chart-stats">
+            <div class="chart-stat">
+              <strong>Latest</strong>
+              <span id="requestRateLatest">--</span>
+            </div>
+            <div class="chart-stat">
+              <strong>Peak</strong>
+              <span id="requestRatePeak">--</span>
+            </div>
+            <div class="chart-stat">
+              <strong>Average</strong>
+              <span id="requestRateAverage">--</span>
+            </div>
+          </div>
+          <div id="requestRateMeta" class="chart-meta">Loading Prometheus data...</div>
+          <div class="chart-help">Shows overall request throughput during the last 10 minutes.</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-top">
+            <div>
+              <h3>Allowed vs denied</h3>
+              <div class="subtle">Latest decision mix across the service.</div>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-dot blue"></span>Allowed</span>
+              <span class="legend-item"><span class="legend-dot amber"></span>Denied</span>
+            </div>
+          </div>
+          <div id="allowedRateChart" class="chart-frame"></div>
+          <div class="chart-stats">
+            <div class="chart-stat">
+              <strong>Allowed</strong>
+              <span id="allowedRateLatest">--</span>
+            </div>
+            <div class="chart-stat">
+              <strong>Denied</strong>
+              <span id="deniedRateLatest">--</span>
+            </div>
+            <div class="chart-stat">
+              <strong>Deny ratio</strong>
+              <span id="denyRatio">--</span>
+            </div>
+          </div>
+          <div id="allowedRateMeta" class="chart-meta">Loading Prometheus data...</div>
+          <div class="chart-help">Shows successful and rejected traffic. Submit a few requests if the chart is empty.</div>
+        </div>
+        <div class="chart-card wide">
+          <div class="chart-top">
+            <div>
+              <h3>P95 latency</h3>
+              <div class="subtle">Tail latency is more useful than average latency when diagnosing slower requests.</div>
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-dot amber"></span>P95 latency</span>
+            </div>
+          </div>
+          <div id="latencyChart" class="chart-frame large-chart"></div>
+          <div class="chart-stats">
+            <div class="chart-stat">
+              <strong>Latest</strong>
+              <span id="latencyLatest">--</span>
+            </div>
+            <div class="chart-stat">
+              <strong>Peak</strong>
+              <span id="latencyPeak">--</span>
+            </div>
+            <div class="chart-stat">
+              <strong>Average</strong>
+              <span id="latencyAverage">--</span>
+            </div>
+          </div>
+          <div id="latencyMeta" class="chart-meta">Loading Prometheus data...</div>
+          <div class="chart-help">Shows the 95th percentile of request latency, which highlights slower requests instead of only the average.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const scenarios = {
+      token: {
+        namespace: 'api',
+        key: 'user123',
+        rule: '20rps',
+        algorithm: 'AUTO',
+        cost: 1,
+        builderMode: 'TOKEN_BUCKET',
+        builderRate: '20',
+        builderLimit: '5',
+        builderWindow: '10s'
+      },
+      window: {
+        namespace: 'auth',
+        key: 'user123',
+        rule: '5/10s',
+        algorithm: 'AUTO',
+        cost: 1,
+        builderMode: 'SLIDING_WINDOW',
+        builderRate: '20',
+        builderLimit: '5',
+        builderWindow: '10s'
+      },
+      heavy: {
+        namespace: 'reports',
+        key: 'tenant-acme',
+        rule: '12rps',
+        algorithm: 'TOKEN_BUCKET',
+        cost: 4,
+        builderMode: 'TOKEN_BUCKET',
+        builderRate: '12',
+        builderLimit: '5',
+        builderWindow: '10s'
+      }
+    };
+
+    let recentHistory = loadHistory();
+    let observabilityInFlight = false;
+
+    function loadHistory() {
+      try {
+        return JSON.parse(window.localStorage.getItem('rl_history') || '[]')
+          .filter((entry) => entry && typeof entry === 'object')
+          .map((entry, index) => ({
+            timestampMs: Number.isFinite(entry.timestampMs) ? entry.timestampMs : Date.now() - index * 1000,
+            time: entry.time || new Date(entry.timestampMs || Date.now()).toLocaleTimeString(),
+            namespace: String(entry.namespace || 'default'),
+            key: String(entry.key || '(missing)'),
+            rule: String(entry.rule || '(missing)'),
+            decision: String(entry.decision || 'unknown'),
+            remaining: entry.remaining ?? 'n/a',
+            retryAfterMs: Number.isFinite(entry.retryAfterMs) ? entry.retryAfterMs : 0,
+            algorithmUsed: String(entry.algorithmUsed || 'unknown'),
+            cost: Number.isFinite(entry.cost) ? entry.cost : 1,
+            error: String(entry.error || '')
+          }));
+      } catch (_err) {
+        return [];
+      }
+    }
+
+    function saveHistory() {
+      window.localStorage.setItem('rl_history', JSON.stringify(recentHistory.slice(0, 20)));
+    }
+
+    function escapeHTML(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function parseDurationToMs(text) {
+      const match = String(text || '').trim().match(/^(\d+)(ms|s|m|h)$/i);
+      if (!match) {
+        return null;
+      }
+
+      const amount = Number(match[1]);
+      const unit = match[2].toLowerCase();
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return null;
+      }
+
+      if (unit === 'ms') {
+        return amount;
+      }
+      if (unit === 's') {
+        return amount * 1000;
+      }
+      if (unit === 'm') {
+        return amount * 60 * 1000;
+      }
+      if (unit === 'h') {
+        return amount * 60 * 60 * 1000;
+      }
+      return null;
+    }
+
+    function formatDuration(ms) {
+      const value = Number(ms || 0);
+      if (value < 1000) {
+        return `${value.toFixed(0)} ms`;
+      }
+      if (value < 60_000) {
+        return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)} s`;
+      }
+      return `${(value / 60_000).toFixed(1)} min`;
+    }
+
+    function formatRate(value) {
+      return `${Number(value || 0).toFixed(2)}/s`;
+    }
+
+    function formatMs(value) {
+      return `${Number(value || 0).toFixed(1)} ms`;
+    }
+
+    function formatTimeLabel(ts) {
+      return new Date(ts * 1000).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+
+    function formatLocalTime(ms) {
+      return new Date(ms).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+
+    function setText(id, value) {
+      document.getElementById(id).textContent = value;
+    }
+
+    function currentPayload() {
+      return {
+        namespace: document.getElementById('ns').value.trim(),
+        key: document.getElementById('key').value.trim(),
+        rule: document.getElementById('rule').value.trim(),
+        algorithm: document.getElementById('algo').value,
+        cost: Number(document.getElementById('cost').value || 1)
+      };
+    }
+
+    function parseRule(rule) {
+      const value = String(rule || '').trim();
+      if (!value) {
+        return { valid: false, kind: 'unknown', message: 'Rule is required.' };
+      }
+
+      if (value.endsWith('rps')) {
+        const amount = Number(value.slice(0, -3));
+        if (!Number.isNaN(amount) && amount > 0) {
+          return {
+            valid: true,
+            kind: 'token_bucket',
+            rate: amount,
+            capacity: amount * 2,
+            message: `Token bucket: refill ${amount} request(s) per second and allow short bursts.`
+          };
+        }
+        return { valid: false, kind: 'token_bucket', message: 'Token bucket rules must be in the form 20rps.' };
+      }
+
+      if (value.includes('/')) {
+        const parts = value.split('/');
+        const amount = Number(parts[0]);
+        const windowText = parts[1];
+        const windowMs = parseDurationToMs(windowText);
+        if (parts.length === 2 && !Number.isNaN(amount) && amount > 0 && windowText) {
+          return {
+            valid: true,
+            kind: 'sliding_window',
+            limit: amount,
+            windowText,
+            windowMs,
+            message: `Sliding window: allow up to ${amount} request(s) every ${windowText}.`
+          };
+        }
+        return { valid: false, kind: 'sliding_window', message: 'Sliding window rules must be in the form 5/10s.' };
+      }
+
+      return { valid: false, kind: 'unknown', message: 'Rule format is not recognized. Use values like 20rps or 5/10s.' };
+    }
+
+    function getEffectiveAlgorithm(payload, parsed) {
+      if (payload.algorithm && payload.algorithm !== 'AUTO') {
+        return payload.algorithm;
+      }
+      if (parsed.kind === 'token_bucket') {
+        return 'TOKEN_BUCKET';
+      }
+      if (parsed.kind === 'sliding_window') {
+        return 'SLIDING_WINDOW';
+      }
+      return 'UNKNOWN';
+    }
+
+    function computeRedisKey(namespace, key, effectiveAlgorithm) {
+      const ns = namespace || 'default';
+      const suffix = effectiveAlgorithm === 'TOKEN_BUCKET'
+        ? 'tb'
+        : effectiveAlgorithm === 'SLIDING_WINDOW'
+          ? 'sw'
+          : '?';
+      return `rl:{${ns}:${key || '(missing)'}}:${suffix}`;
+    }
+
+    function updateBuilderVisibility() {
+      const mode = document.getElementById('builderMode').value;
+      document.getElementById('builderRateField').style.display = mode === 'TOKEN_BUCKET' ? 'grid' : 'none';
+      document.getElementById('builderLimitField').style.display = mode === 'SLIDING_WINDOW' ? 'grid' : 'none';
+      document.getElementById('builderWindowField').style.display = mode === 'SLIDING_WINDOW' ? 'grid' : 'none';
+    }
+
+    function updateRuleFromBuilder() {
+      updateBuilderVisibility();
+
+      const mode = document.getElementById('builderMode').value;
+      if (mode === 'TOKEN_BUCKET') {
+        const rate = document.getElementById('builderRate').value.trim();
+        if (rate) {
+          document.getElementById('rule').value = `${rate}rps`;
+        }
+      } else {
+        const limit = document.getElementById('builderLimit').value.trim();
+        const windowText = document.getElementById('builderWindow').value.trim();
+        if (limit && windowText) {
+          document.getElementById('rule').value = `${limit}/${windowText}`;
+        }
+      }
+      updatePreview();
+    }
+
+    function syncBuilderFromRule() {
+      const parsed = parseRule(document.getElementById('rule').value);
+      if (!parsed.valid) {
+        updatePreview();
+        return;
+      }
+
+      if (parsed.kind === 'token_bucket') {
+        document.getElementById('builderMode').value = 'TOKEN_BUCKET';
+        document.getElementById('builderRate').value = String(parsed.rate);
+      } else if (parsed.kind === 'sliding_window') {
+        document.getElementById('builderMode').value = 'SLIDING_WINDOW';
+        document.getElementById('builderLimit').value = String(parsed.limit);
+        document.getElementById('builderWindow').value = parsed.windowText;
+      }
+
+      updateBuilderVisibility();
+      updatePreview();
+    }
+
+    function handleRuleInput() {
+      syncBuilderFromRule();
+    }
+
+    function applyScenario(name) {
+      const preset = scenarios[name];
+      document.getElementById('ns').value = preset.namespace;
+      document.getElementById('key').value = preset.key;
+      document.getElementById('rule').value = preset.rule;
+      document.getElementById('algo').value = preset.algorithm;
+      document.getElementById('cost').value = preset.cost;
+      document.getElementById('builderMode').value = preset.builderMode;
+      document.getElementById('builderRate').value = preset.builderRate;
+      document.getElementById('builderLimit').value = preset.builderLimit;
+      document.getElementById('builderWindow').value = preset.builderWindow;
+      setActiveScenario(name);
+      updateBuilderVisibility();
+      updatePreview();
+    }
+
+    function setActiveScenario(name) {
+      document.querySelectorAll('[data-scenario]').forEach((node) => {
+        node.classList.toggle('active', node.dataset.scenario === name);
+      });
+    }
+
+    function validatePayload(payload) {
+      const issues = [];
+      const parsed = parseRule(payload.rule);
+
+      if (!payload.key) {
+        issues.push('Key is required.');
+      }
+
+      if (!parsed.valid) {
+        issues.push(parsed.message);
+      }
+
+      if (!Number.isFinite(payload.cost) || payload.cost <= 0 || !Number.isInteger(payload.cost)) {
+        issues.push('Cost must be a positive whole number.');
+      }
+
+      if (parsed.valid && payload.algorithm !== 'AUTO') {
+        if (payload.algorithm === 'TOKEN_BUCKET' && parsed.kind !== 'token_bucket') {
+          issues.push('Algorithm TOKEN_BUCKET requires a token bucket rule such as 20rps.');
+        }
+        if (payload.algorithm === 'SLIDING_WINDOW' && parsed.kind !== 'sliding_window') {
+          issues.push('Algorithm SLIDING_WINDOW requires a sliding window rule such as 5/10s.');
+        }
+      }
+
+      if (parsed.valid && parsed.kind === 'sliding_window' && Number.isInteger(payload.cost) && payload.cost > parsed.limit) {
+        issues.push(`Cost cannot exceed the sliding window limit of ${parsed.limit}.`);
+      }
+
+      if (parsed.valid && parsed.kind === 'token_bucket' && Number.isInteger(payload.cost) && payload.cost > parsed.capacity) {
+        issues.push(`Cost cannot exceed the default token bucket burst capacity of ${parsed.capacity}.`);
+      }
+
+      if (parsed.valid && parsed.kind === 'sliding_window' && parsed.windowMs === null) {
+        issues.push('Sliding window durations must use ms, s, m, or h units.');
+      }
+
+      return { issues, parsed };
+    }
+
+    function renderValidation(issues) {
+      const box = document.getElementById('validationBox');
+      const list = document.getElementById('validationList');
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (!issues.length) {
+        box.classList.remove('visible');
+        list.innerHTML = '';
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+        return;
+      }
+
+      list.innerHTML = issues.map((issue) => `<li>${escapeHTML(issue)}</li>`).join('');
+      box.classList.add('visible');
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.65';
+      submitBtn.style.cursor = 'not-allowed';
+    }
+
+    function renderRedisKey(payload, parsed) {
+      const effectiveAlgorithm = getEffectiveAlgorithm(payload, parsed);
+      const redisKey = computeRedisKey(payload.namespace, payload.key, effectiveAlgorithm);
+      const suffixMeaning = effectiveAlgorithm === 'TOKEN_BUCKET'
+        ? 'The suffix <code>tb</code> indicates token bucket state.'
+        : effectiveAlgorithm === 'SLIDING_WINDOW'
+          ? 'The suffix <code>sw</code> indicates sliding-window state.'
+          : 'The suffix becomes concrete once the request resolves to a valid algorithm.';
+
+      document.getElementById('redisKeyPreview').innerHTML =
+        `<strong>Redis key preview</strong>` +
+        `<div><code>${escapeHTML(redisKey)}</code></div>` +
+        `<div class="timeline-note">The hash tag keeps all state for this namespace and key on the same Redis cluster slot. ${suffixMeaning}</div>`;
+    }
+
+    function normalizeSimulator(parsed) {
+      if (!parsed.valid) {
+        return null;
+      }
+
+      if (parsed.kind === 'token_bucket') {
+        return {
+          tokenBucket: {
+            exact: true,
+            rate: parsed.rate,
+            capacity: parsed.capacity
+          },
+          slidingWindow: {
+            exact: false,
+            limit: parsed.rate,
+            windowText: '1s',
+            windowMs: 1000
+          }
+        };
+      }
+
+      if (parsed.kind === 'sliding_window') {
+        const avgRate = parsed.windowMs ? parsed.limit / (parsed.windowMs / 1000) : null;
+        return {
+          tokenBucket: {
+            exact: false,
+            rate: avgRate,
+            capacity: parsed.limit * 2
+          },
+          slidingWindow: {
+            exact: true,
+            limit: parsed.limit,
+            windowText: parsed.windowText,
+            windowMs: parsed.windowMs
+          }
+        };
+      }
+
+      return null;
+    }
+
+    function renderSimulator(payload, parsed) {
+      const simulator = document.getElementById('simulatorGrid');
+      const normalized = normalizeSimulator(parsed);
+      if (!normalized) {
+        simulator.innerHTML = `
+          <div class="sim-card">
+            <strong>Simulation unavailable</strong>
+            <div class="subtle">Enter a valid rule to compare the token bucket and sliding-window behaviors.</div>
+          </div>
+        `;
+        return;
+      }
+
+      const cost = Number.isFinite(payload.cost) && payload.cost > 0 ? payload.cost : 1;
+      const tokenFits = normalized.tokenBucket.rate !== null && cost <= normalized.tokenBucket.capacity;
+      const slidingFits = cost <= normalized.slidingWindow.limit;
+      const tokenSteady = normalized.tokenBucket.rate === null
+        ? 'Average refill cannot be derived because the window duration is not recognized.'
+        : `A sustained rate above ${normalized.tokenBucket.rate.toFixed(normalized.tokenBucket.rate % 1 === 0 ? 0 : 2)}/s will eventually be denied.`;
+      const slidingSteady = `A request costing ${cost} requires ${cost === 1 ? '1 open slot' : `${cost} open slots`} within ${normalized.slidingWindow.windowText}.`;
+
+      simulator.innerHTML = `
+        <div class="sim-card">
+          <strong>Token bucket lens</strong>
+          <div class="subtle">${normalized.tokenBucket.exact ? 'Exact interpretation for this rule.' : 'Approximate comparison based on the same overall traffic budget.'}</div>
+          <div>Refill rate: <code>${normalized.tokenBucket.rate === null ? 'n/a' : `${normalized.tokenBucket.rate.toFixed(normalized.tokenBucket.rate % 1 === 0 ? 0 : 2)}rps`}</code></div>
+          <div>Burst capacity: <code>${normalized.tokenBucket.capacity.toFixed(0)}</code> unit(s)</div>
+          <div>Current request cost: <code>${cost}</code> ${tokenFits ? 'fits inside the bucket when capacity is available.' : 'exceeds the bucket capacity and would be rejected immediately.'}</div>
+          <div class="timeline-note">${tokenSteady}</div>
+        </div>
+        <div class="sim-card">
+          <strong>Sliding-window lens</strong>
+          <div class="subtle">${normalized.slidingWindow.exact ? 'Exact interpretation for this rule.' : 'Closest strict-window comparison for the same request.'}</div>
+          <div>Window rule: <code>${normalized.slidingWindow.limit}/${escapeHTML(normalized.slidingWindow.windowText)}</code></div>
+          <div>Current request cost: <code>${cost}</code> ${slidingFits ? 'fits inside the configured limit when room remains in the window.' : 'exceeds the window limit and would be rejected.'}</div>
+          <div class="timeline-note">${slidingSteady}</div>
+        </div>
+      `;
+    }
+
+    function updateExamples() {
+      const payload = currentPayload();
+      const jsonText = JSON.stringify(payload, null, 2);
+      const url = `${window.location.origin}/api/allow`;
+      const curlText =
+        `curl -X POST ${url} \\\n` +
+        `  -H 'Content-Type: application/json' \\\n` +
+        `  -d '${JSON.stringify(payload)}'`;
+
+      document.getElementById('jsonExample').textContent = jsonText;
+      document.getElementById('curlExample').textContent = curlText;
+    }
+
+    async function copyExample(kind) {
+      const text = kind === 'json'
+        ? document.getElementById('jsonExample').textContent
+        : document.getElementById('curlExample').textContent;
+
+      try {
+        await navigator.clipboard.writeText(text);
+        document.getElementById('status').textContent = `${kind.toUpperCase()} example copied to clipboard.`;
+      } catch (_err) {
+        document.getElementById('status').textContent = `Unable to copy the ${kind.toUpperCase()} example in this browser.`;
+      }
+    }
+
+    function updatePreview() {
+      const payload = currentPayload();
+      const validation = validatePayload(payload);
+      const parsed = validation.parsed;
+      const effectiveAlgorithm = getEffectiveAlgorithm(payload, parsed);
+      const keyText = payload.key || '(missing key)';
+      const namespaceText = payload.namespace || 'default';
+      const ruleText = payload.rule || '(missing rule)';
+      const autoText = payload.algorithm === 'AUTO'
+        ? 'AUTO derives the algorithm from the rule format.'
+        : `The request explicitly specifies <code>${escapeHTML(payload.algorithm)}</code>.`;
+
+      document.getElementById('preview').innerHTML =
+        `Traffic for <code>${escapeHTML(keyText)}</code> in namespace <code>${escapeHTML(namespaceText)}</code> will be checked against <code>${escapeHTML(ruleText)}</code>. ` +
+        `${escapeHTML(parsed.message)} ` +
+        `${autoText} ` +
+        `Each allowed request will spend <code>${Number.isFinite(payload.cost) ? payload.cost : 1}</code> unit${payload.cost === 1 ? '' : 's'}.`;
+
+      document.getElementById('effectiveAlgoPill').textContent = `Effective algorithm: ${effectiveAlgorithm}`;
+      renderRedisKey(payload, parsed);
+      renderSimulator(payload, parsed);
+      updateExamples();
+      renderValidation(validation.issues);
+    }
+
+    function explainHTTPError(errorText) {
+      const lower = String(errorText || '').toLowerCase();
+      if (lower.includes('algorithm') && lower.includes('does not match')) {
+        return 'The request specified an algorithm that does not match the rule format. Use AUTO or align the algorithm with the rule.';
+      }
+      if (lower.includes('cost') && lower.includes('exceeds')) {
+        return 'The request cost is larger than the configured budget for this rule. Reduce the cost or increase the limit.';
+      }
+      if (lower.includes('key and rule required')) {
+        return 'The service requires both a key and a rule before it can evaluate the request.';
+      }
+      if (lower.includes('unsupported algorithm')) {
+        return 'The selected algorithm is not supported by the service.';
+      }
+      return 'The gateway returned an error before a rate-limit decision could be completed.';
+    }
+
+    function interpretResponse(payload, parsed, json, httpStatus) {
+      if (httpStatus >= 400) {
+        return `The service returned HTTP ${httpStatus}. ${explainHTTPError(json.error || '')}`;
+      }
+
+      if (json.allowed === true) {
+        return `Request allowed. ${json.remaining ?? 0} unit(s) remain for key ${payload.key || '(unknown)'} under ${json.algorithm_used || getEffectiveAlgorithm(payload, parsed)}.`;
+      }
+
+      if (json.allowed === false) {
+        return `Request denied. The active limit has been exhausted. Retry after approximately ${json.retry_after_ms ?? 0} ms.`;
+      }
+
+      return 'The service returned a response that could not be interpreted automatically.';
+    }
+
+    function explainDecision(payload, parsed, json, httpStatus) {
+      if (httpStatus >= 400) {
+        return explainHTTPError(json.error || '');
+      }
+
+      if (json.allowed === true) {
+        if (parsed.kind === 'token_bucket') {
+          return `The token bucket accepted this request because the current cost of ${payload.cost} fits within the available tokens. The bucket refills at ${parsed.rate}/s with an estimated burst capacity of ${parsed.capacity}.`;
+        }
+        if (parsed.kind === 'sliding_window') {
+          return `The sliding window accepted this request because at least ${payload.cost} slot${payload.cost === 1 ? '' : 's'} remained within the last ${parsed.windowText}.`;
+        }
+        return 'The request satisfied the current limit and was accepted.';
+      }
+
+      if (json.allowed === false) {
+        if (parsed.kind === 'token_bucket') {
+          return `The token bucket did not have enough tokens available for a cost of ${payload.cost}. It refills at ${parsed.rate}/s and typically allows bursts up to ${parsed.capacity}. The reported retry delay estimates when enough tokens should become available again.`;
+        }
+        if (parsed.kind === 'sliding_window') {
+          return `The sliding window already contains as many recent requests as the rule allows. This request needs ${payload.cost} slot${payload.cost === 1 ? '' : 's'} inside the last ${parsed.windowText}, so it must wait until older requests fall out of the window.`;
+        }
+        return 'The request was denied because the limit had been exhausted.';
+      }
+
+      return 'The response did not include enough detail to generate a fuller explanation.';
+    }
+
+    function renderDecisionExplanation(payload, parsed, json, httpStatus) {
+      document.getElementById('responseSummary').textContent = interpretResponse(payload, parsed, json, httpStatus);
+      document.getElementById('denialAnalysis').innerHTML =
+        `<strong>Why this result occurred</strong>` +
+        `<div>${escapeHTML(explainDecision(payload, parsed, json, httpStatus))}</div>`;
+    }
+
+    function renderHistory() {
+      const table = document.getElementById('historyTable');
+      const body = document.getElementById('historyBody');
+      const empty = document.getElementById('historyEmpty');
+
+      if (!recentHistory.length) {
+        table.style.display = 'none';
+        empty.style.display = 'block';
+        renderRequestTimeline();
+        return;
+      }
+
+      empty.style.display = 'none';
+      table.style.display = 'table';
+      body.innerHTML = recentHistory.map((entry) => `
+        <tr>
+          <td>${escapeHTML(entry.time)}</td>
+          <td>${escapeHTML(entry.namespace)}</td>
+          <td>${escapeHTML(entry.key)}</td>
+          <td>${escapeHTML(entry.rule)}</td>
+          <td>${escapeHTML(entry.decision)}</td>
+          <td>${escapeHTML(String(entry.remaining))}</td>
+        </tr>
+      `).join('');
+      renderRequestTimeline();
+    }
+
+    function addHistory(payload, json, httpStatus) {
+      const decision = httpStatus >= 400 ? `HTTP ${httpStatus}` : (json.allowed ? 'allowed' : 'denied');
+      const timestampMs = Date.now();
+
+      recentHistory.unshift({
+        timestampMs,
+        time: formatLocalTime(timestampMs),
+        namespace: payload.namespace || 'default',
+        key: payload.key || '(missing)',
+        rule: payload.rule || '(missing)',
+        decision,
+        remaining: json.remaining ?? 'n/a',
+        retryAfterMs: Number(json.retry_after_ms || 0),
+        algorithmUsed: String(json.algorithm_used || getEffectiveAlgorithm(payload, parseRule(payload.rule))),
+        cost: Number.isFinite(payload.cost) ? payload.cost : 1,
+        error: String(json.error || '')
+      });
+      recentHistory = recentHistory.slice(0, 20);
+      saveHistory();
+      renderHistory();
+    }
+
+    function summarizeSeries(points) {
+      if (!points || !points.length) {
+        return 'No recent samples are available yet. Submit a few requests and wait for the next Prometheus scrape.';
+      }
+      const last = points[points.length - 1].value || 0;
+      const peak = Math.max(...points.map((point) => point.value || 0));
+      return `Latest ${last.toFixed(2)}. Peak ${peak.toFixed(2)} during the last 10 minutes. Hover over the chart to inspect exact samples.`;
+    }
+
+    function computeStats(points) {
+      if (!points || !points.length) {
+        return { latest: 0, peak: 0, average: 0 };
+      }
+
+      const values = points.map((point) => point.value || 0);
+      const total = values.reduce((sum, value) => sum + value, 0);
+      return {
+        latest: values[values.length - 1] || 0,
+        peak: Math.max(...values),
+        average: total / values.length
+      };
+    }
+
+    function setRateStats(prefix, points) {
+      const stats = computeStats(points);
+      setText(`${prefix}Latest`, formatRate(stats.latest));
+      setText(`${prefix}Peak`, formatRate(stats.peak));
+      setText(`${prefix}Average`, formatRate(stats.average));
+    }
+
+    function setLatencyStats(points) {
+      const stats = computeStats(points);
+      setText('latencyLatest', formatMs(stats.latest));
+      setText('latencyPeak', formatMs(stats.peak));
+      setText('latencyAverage', formatMs(stats.average));
+    }
+
+    function setDecisionStats(allowedPoints, deniedPoints) {
+      const allowedStats = computeStats(allowedPoints);
+      const deniedStats = computeStats(deniedPoints);
+      const totalLatest = allowedStats.latest + deniedStats.latest;
+      const ratio = totalLatest > 0 ? (deniedStats.latest / totalLatest) * 100 : 0;
+
+      setText('allowedRateLatest', formatRate(allowedStats.latest));
+      setText('deniedRateLatest', formatRate(deniedStats.latest));
+      setText('denyRatio', `${ratio.toFixed(1)}%`);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function buildTicks(minValue, maxValue, count) {
+      if (count <= 1) {
+        return [maxValue];
+      }
+      const ticks = [];
+      const range = maxValue - minValue || 1;
+      for (let index = 0; index < count; index += 1) {
+        const ratio = index / (count - 1);
+        ticks.push(maxValue - ratio * range);
+      }
+      return ticks;
+    }
+
+    function renderChart(containerId, metaId, series, options) {
+      const container = document.getElementById(containerId);
+      const meta = document.getElementById(metaId);
+      const activeSeries = (series || []).filter((item) => item && item.points && item.points.length);
+
+      if (!activeSeries.length) {
+        container.innerHTML = `<div class="chart-empty">${escapeHTML(options.emptyMessage)}</div>`;
+        meta.textContent = options.emptyMeta || 'No recent samples are available yet.';
+        return;
+      }
+
+      const width = options.width || 420;
+      const height = options.height || 290;
+      const padding = { top: 18, right: 18, bottom: 38, left: 56, ...(options.padding || {}) };
+      const plotWidth = width - padding.left - padding.right;
+      const plotHeight = height - padding.top - padding.bottom;
+      const allPoints = activeSeries.flatMap((item) => item.points);
+      const allValues = allPoints.map((point) => point.value || 0);
+      const allTimestamps = allPoints.map((point) => point.timestamp || 0);
+      const minValue = options.includeZero ? Math.min(0, ...allValues) : Math.min(...allValues);
+      const rawMaxValue = Math.max(...allValues, options.minMaxFloor || 1);
+      const maxValue = rawMaxValue === minValue ? minValue + 1 : rawMaxValue;
+      const minTs = Math.min(...allTimestamps);
+      const maxTs = Math.max(...allTimestamps);
+      const spanTs = Math.max(maxTs - minTs, 1);
+
+      const yFor = (value) => padding.top + (1 - ((value - minValue) / (maxValue - minValue))) * plotHeight;
+      const xFor = (ts) => padding.left + ((ts - minTs) / spanTs) * plotWidth;
+      const yTicks = buildTicks(minValue, maxValue, 5);
+      const xTicks = [0, 0.5, 1].map((ratio) => minTs + ratio * spanTs);
+
+      const seriesState = activeSeries.map((item) => {
+        const coords = item.points.map((point) => ({
+          ...point,
+          x: xFor(point.timestamp),
+          y: yFor(point.value || 0)
+        }));
+        return { ...item, coords };
+      });
+
+      container.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="0" y="0" width="${width}" height="${height}" fill="#fbfcfd"></rect>
+          ${yTicks.map((tick) => `
+            <g>
+              <line x1="${padding.left}" y1="${yFor(tick)}" x2="${width - padding.right}" y2="${yFor(tick)}" stroke="#edf1f4" stroke-width="1"></line>
+              <text x="${padding.left - 10}" y="${yFor(tick) + 4}" text-anchor="end" fill="#5f6c76" font-size="11">${escapeHTML(options.valueFormatter(tick))}</text>
+            </g>
+          `).join('')}
+          ${xTicks.map((tick) => `
+            <g>
+              <line x1="${xFor(tick)}" y1="${height - padding.bottom}" x2="${xFor(tick)}" y2="${height - padding.bottom + 6}" stroke="#d8e0e6" stroke-width="1"></line>
+              <text x="${xFor(tick)}" y="${height - 10}" text-anchor="middle" fill="#5f6c76" font-size="11">${escapeHTML(formatTimeLabel(tick))}</text>
+            </g>
+          `).join('')}
+          <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" stroke="#d8e0e6" stroke-width="1"></line>
+          <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" stroke="#d8e0e6" stroke-width="1"></line>
+          ${seriesState.map((item) => {
+            const pointsText = item.coords.map((point) => `${point.x},${point.y}`).join(' ');
+            const area = `${padding.left},${height - padding.bottom} ${pointsText} ${width - padding.right},${height - padding.bottom}`;
+            return `
+              ${item.fill ? `<polygon fill="${item.color}18" points="${area}"></polygon>` : ''}
+              <polyline
+                fill="none"
+                stroke="${item.color}"
+                stroke-width="${item.strokeWidth || 3}"
+                stroke-dasharray="${item.dashed ? '6 4' : ''}"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                points="${pointsText}">
+              </polyline>
+            `;
+          }).join('')}
+          <line class="chart-crosshair" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" stroke="#b8c6cf" stroke-width="1" stroke-dasharray="4 4" style="display:none;"></line>
+          ${seriesState.map((item, index) => `
+            <circle class="chart-marker marker-${index}" r="4.5" fill="${item.color}" stroke="#ffffff" stroke-width="2" cx="${padding.left}" cy="${padding.top}" style="display:none;"></circle>
+          `).join('')}
+          <rect class="chart-overlay" x="${padding.left}" y="${padding.top}" width="${plotWidth}" height="${plotHeight}" fill="transparent"></rect>
+        </svg>
+        <div class="chart-tooltip" aria-live="polite"></div>
+      `;
+
+      meta.textContent = options.metaText || summarizeSeries(activeSeries[0].points);
+
+      const overlay = container.querySelector('.chart-overlay');
+      const tooltip = container.querySelector('.chart-tooltip');
+      const crosshair = container.querySelector('.chart-crosshair');
+      const markers = Array.from(container.querySelectorAll('.chart-marker'));
+
+      function hideTooltip() {
+        tooltip.classList.remove('visible');
+        crosshair.style.display = 'none';
+        markers.forEach((marker) => {
+          marker.style.display = 'none';
+        });
+      }
+
+      function showTooltip(event) {
+        const rect = overlay.getBoundingClientRect();
+        const relativeX = clamp(event.clientX - rect.left, 0, rect.width);
+        const svgX = padding.left + (relativeX / rect.width) * plotWidth;
+
+        const baseSeries = seriesState[0].coords;
+        let nearestIndex = 0;
+        let nearestDistance = Infinity;
+        baseSeries.forEach((point, index) => {
+          const distance = Math.abs(point.x - svgX);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestIndex = index;
+          }
+        });
+
+        const timestamp = seriesState[0].coords[nearestIndex].timestamp;
+        const activeRows = seriesState.map((item, index) => {
+          const point = item.coords[Math.min(nearestIndex, item.coords.length - 1)];
+          if (!point) {
+            return '';
+          }
+          markers[index].style.display = 'block';
+          markers[index].setAttribute('cx', point.x);
+          markers[index].setAttribute('cy', point.y);
+          return `
+            <div class="tooltip-row">
+              <span class="tooltip-label"><span class="tooltip-dot" style="background:${item.color};"></span>${escapeHTML(item.name)}</span>
+              <span>${escapeHTML(item.tooltipFormatter ? item.tooltipFormatter(point.value) : options.valueFormatter(point.value))}</span>
+            </div>
+          `;
+        }).join('');
+
+        crosshair.style.display = 'block';
+        crosshair.setAttribute('x1', seriesState[0].coords[nearestIndex].x);
+        crosshair.setAttribute('x2', seriesState[0].coords[nearestIndex].x);
+
+        tooltip.innerHTML = `<strong>${escapeHTML(formatTimeLabel(timestamp))}</strong>${activeRows}`;
+        tooltip.classList.add('visible');
+
+        const containerRect = container.getBoundingClientRect();
+        const tooltipWidth = Math.min(tooltip.offsetWidth || 180, container.clientWidth - 16);
+        const left = clamp(event.clientX - containerRect.left + 12, 8, container.clientWidth - tooltipWidth - 8);
+        const top = clamp(event.clientY - containerRect.top - 12 - (tooltip.offsetHeight || 76), 8, container.clientHeight - 8 - (tooltip.offsetHeight || 76));
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+      }
+
+      overlay.addEventListener('mousemove', showTooltip);
+      overlay.addEventListener('mouseenter', showTooltip);
+      overlay.addEventListener('mouseleave', hideTooltip);
+      container.addEventListener('mouseleave', hideTooltip);
+    }
+
+    function renderRequestTimeline() {
+      const container = document.getElementById('requestTimelineChart');
+      const meta = document.getElementById('requestTimelineMeta');
+      if (!recentHistory.length) {
+        container.innerHTML = '<div class="chart-empty">No local requests yet. Submit a request to start the timeline.</div>';
+        meta.textContent = 'No local requests have been submitted from this page yet.';
+        return;
+      }
+
+      const width = 420;
+      const height = 240;
+      const padding = { top: 18, right: 18, bottom: 34, left: 64 };
+      const plotWidth = width - padding.left - padding.right;
+      const plotHeight = height - padding.top - padding.bottom;
+      const entries = recentHistory.slice(0, 20).slice().reverse();
+      const minTs = Math.min(...entries.map((entry) => entry.timestampMs));
+      const maxTs = Math.max(...entries.map((entry) => entry.timestampMs));
+      const spanTs = Math.max(maxTs - minTs, 1);
+      const lanes = {
+        allowed: padding.top + plotHeight * 0.25,
+        denied: padding.top + plotHeight * 0.58,
+        error: padding.top + plotHeight * 0.84
+      };
+
+      function laneFor(entry) {
+        if (String(entry.decision).startsWith('HTTP')) {
+          return 'error';
+        }
+        if (entry.decision === 'denied') {
+          return 'denied';
+        }
+        return 'allowed';
+      }
+
+      function colorFor(entry) {
+        if (String(entry.decision).startsWith('HTTP')) {
+          return '#a62b2b';
+        }
+        if (entry.decision === 'denied') {
+          return getComputedStyle(document.documentElement).getPropertyValue('--amber').trim();
+        }
+        return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      }
+
+      const points = entries.map((entry) => ({
+        ...entry,
+        lane: laneFor(entry),
+        x: padding.left + ((entry.timestampMs - minTs) / spanTs) * plotWidth,
+        y: lanes[laneFor(entry)],
+        color: colorFor(entry)
+      }));
+
+      const xTicks = [0, 0.5, 1].map((ratio) => minTs + ratio * spanTs);
+
+      container.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="0" y="0" width="${width}" height="${height}" fill="#fbfcfd"></rect>
+          ${Object.values(lanes).map((y) => `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="#edf1f4" stroke-width="1"></line>`).join('')}
+          <text x="${padding.left - 12}" y="${lanes.allowed + 4}" text-anchor="end" fill="#5f6c76" font-size="11">Allowed</text>
+          <text x="${padding.left - 12}" y="${lanes.denied + 4}" text-anchor="end" fill="#5f6c76" font-size="11">Denied</text>
+          <text x="${padding.left - 12}" y="${lanes.error + 4}" text-anchor="end" fill="#5f6c76" font-size="11">HTTP error</text>
+          ${xTicks.map((tick) => `
+            <g>
+              <line x1="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y1="${height - padding.bottom}" x2="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y2="${height - padding.bottom + 6}" stroke="#d8e0e6" stroke-width="1"></line>
+              <text x="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y="${height - 10}" text-anchor="middle" fill="#5f6c76" font-size="11">${escapeHTML(formatLocalTime(tick))}</text>
+            </g>
+          `).join('')}
+          <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" stroke="#d8e0e6" stroke-width="1"></line>
+          ${points.map((point) => `<circle class="timeline-dot" cx="${point.x}" cy="${point.y}" r="6" fill="${point.color}" stroke="#ffffff" stroke-width="2"></circle>`).join('')}
+          <circle class="timeline-active" cx="${padding.left}" cy="${lanes.allowed}" r="8" fill="none" stroke="#1f2933" stroke-width="2" style="display:none;"></circle>
+          <rect class="chart-overlay" x="${padding.left}" y="${padding.top}" width="${plotWidth}" height="${plotHeight}" fill="transparent"></rect>
+        </svg>
+        <div class="chart-tooltip" aria-live="polite"></div>
+      `;
+
+      const allowedCount = entries.filter((entry) => entry.decision === 'allowed').length;
+      const deniedCount = entries.filter((entry) => entry.decision === 'denied').length;
+      const errorCount = entries.filter((entry) => String(entry.decision).startsWith('HTTP')).length;
+      meta.textContent = `${entries.length} local request(s) shown. Allowed: ${allowedCount}. Denied: ${deniedCount}. HTTP errors: ${errorCount}.`;
+
+      const overlay = container.querySelector('.chart-overlay');
+      const tooltip = container.querySelector('.chart-tooltip');
+      const activeMarker = container.querySelector('.timeline-active');
+
+      function hideTooltip() {
+        tooltip.classList.remove('visible');
+        activeMarker.style.display = 'none';
+      }
+
+      function showTooltip(event) {
+        const rect = overlay.getBoundingClientRect();
+        const relativeX = clamp(event.clientX - rect.left, 0, rect.width);
+        const svgX = padding.left + (relativeX / rect.width) * plotWidth;
+        let nearest = points[0];
+        let nearestDistance = Infinity;
+        points.forEach((point) => {
+          const distance = Math.abs(point.x - svgX);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = point;
+          }
+        });
+
+        activeMarker.style.display = 'block';
+        activeMarker.setAttribute('cx', nearest.x);
+        activeMarker.setAttribute('cy', nearest.y);
+
+        tooltip.innerHTML = `
+          <strong>${escapeHTML(nearest.time)}</strong>
+          <div class="tooltip-row"><span>Decision</span><span>${escapeHTML(nearest.decision)}</span></div>
+          <div class="tooltip-row"><span>Key</span><span>${escapeHTML(nearest.key)}</span></div>
+          <div class="tooltip-row"><span>Rule</span><span>${escapeHTML(nearest.rule)}</span></div>
+          <div class="tooltip-row"><span>Remaining</span><span>${escapeHTML(String(nearest.remaining))}</span></div>
+        `;
+        tooltip.classList.add('visible');
+
+        const containerRect = container.getBoundingClientRect();
+        const tooltipWidth = Math.min(tooltip.offsetWidth || 200, container.clientWidth - 16);
+        const left = clamp(event.clientX - containerRect.left + 12, 8, container.clientWidth - tooltipWidth - 8);
+        const top = clamp(event.clientY - containerRect.top - 12 - (tooltip.offsetHeight || 92), 8, container.clientHeight - 8 - (tooltip.offsetHeight || 92));
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+      }
+
+      overlay.addEventListener('mousemove', showTooltip);
+      overlay.addEventListener('mouseenter', showTooltip);
+      overlay.addEventListener('mouseleave', hideTooltip);
+      container.addEventListener('mouseleave', hideTooltip);
+    }
+
+    async function send(event) {
+      if (event) {
+        event.preventDefault();
+      }
+
+      const status = document.getElementById('status');
+      const resultBadge = document.getElementById('resultBadge');
+      const output = document.getElementById('out');
+      const payload = currentPayload();
+      const validation = validatePayload(payload);
+
+      renderValidation(validation.issues);
+      if (validation.issues.length) {
+        status.textContent = 'Resolve the validation items before submitting the request.';
+        return;
+      }
+
+      status.textContent = 'Sending request...';
+      resultBadge.className = 'badge';
+      resultBadge.textContent = 'Waiting for response';
+
+      try {
+        const res = await fetch('/api/allow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const json = await res.json();
+        output.textContent = JSON.stringify(json, null, 2);
+        renderDecisionExplanation(payload, validation.parsed, json, res.status);
+        addHistory(payload, json, res.status);
+
+        if (res.ok && json.allowed === true) {
+          resultBadge.className = 'badge allowed';
+          resultBadge.textContent = 'Allowed';
+          status.textContent = `Allowed with ${json.remaining ?? 'unknown'} unit(s) remaining.`;
+        } else if (res.ok && json.allowed === false) {
+          resultBadge.className = 'badge denied';
+          resultBadge.textContent = 'Denied';
+          status.textContent = `Denied. Retry after ${json.retry_after_ms ?? 0} ms.`;
+        } else {
+          resultBadge.className = 'badge denied';
+          resultBadge.textContent = `HTTP ${res.status}`;
+          status.textContent = 'The service returned an error.';
+        }
+      } catch (err) {
+        const payloadError = { error: String(err) };
+        resultBadge.className = 'badge denied';
+        resultBadge.textContent = 'Network error';
+        status.textContent = 'The request did not reach the gateway.';
+        renderDecisionExplanation(payload, validation.parsed, payloadError, 502);
+        output.textContent = JSON.stringify(payloadError, null, 2);
+      }
+
+      loadObservability();
+    }
+
+    function configureHostLinks() {
+      const host = window.location.hostname || 'localhost';
+      document.getElementById('grafanaLink').href = `http://${host}:3000`;
+      document.getElementById('prometheusLink').href = `http://${host}:9091`;
+      document.getElementById('envoyLink').href = `http://${host}:9901`;
+      document.getElementById('grpcHost').textContent = `${host}:50051`;
+    }
+
+    async function loadObservability() {
+      if (observabilityInFlight) {
+        return;
+      }
+      observabilityInFlight = true;
+
+      try {
+        const res = await fetch('/api/observability', { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || 'Unable to load observability data.');
+        }
+
+        const colors = getComputedStyle(document.documentElement);
+        const accent = colors.getPropertyValue('--accent').trim();
+        const blue = colors.getPropertyValue('--blue').trim();
+        const amber = colors.getPropertyValue('--amber').trim();
+
+        setText('requestRateValue', formatRate(json.stats.request_rate));
+        setText('allowedRateValue', formatRate(json.stats.allowed_rate));
+        setText('deniedRateValue', formatRate(json.stats.denied_rate));
+        setText('latencyValue', formatMs(json.stats.latency_p95_ms));
+        setText('targetsValue', `${Number(json.stats.ratelimiter_targets_up || 0).toFixed(0)} rate limiter target(s) currently up. Data refreshed ${new Date(json.generated_at).toLocaleTimeString()}.`);
+
+        renderChart('requestRateChart', 'requestRateMeta', [
+          {
+            name: 'Total requests',
+            color: accent,
+            fill: true,
+            points: json.series.request_rate || []
+          }
+        ], {
+          valueFormatter: formatRate,
+          tooltipFormatter: formatRate,
+          includeZero: true,
+          emptyMessage: 'No recent request-rate samples. Submit a few requests and wait for the next scrape.',
+          metaText: summarizeSeries(json.series.request_rate || [])
+        });
+
+        renderChart('allowedRateChart', 'allowedRateMeta', [
+          {
+            name: 'Allowed',
+            color: blue,
+            strokeWidth: 3,
+            points: json.series.allowed_rate || []
+          },
+          {
+            name: 'Denied',
+            color: amber,
+            dashed: true,
+            strokeWidth: 2.5,
+            points: json.series.denied_rate || []
+          }
+        ], {
+          valueFormatter: formatRate,
+          tooltipFormatter: formatRate,
+          includeZero: true,
+          emptyMessage: 'No recent Prometheus samples. Submit a few requests and wait for the next scrape.',
+          metaText: `Latest allowed ${computeStats(json.series.allowed_rate || []).latest.toFixed(2)}. Latest denied ${computeStats(json.series.denied_rate || []).latest.toFixed(2)}. Hover to inspect both series at the same moment.`
+        });
+
+        renderChart('latencyChart', 'latencyMeta', [
+          {
+            name: 'P95 latency',
+            color: amber,
+            fill: true,
+            points: json.series.latency_p95_ms || []
+          }
+        ], {
+          valueFormatter: formatMs,
+          tooltipFormatter: formatMs,
+          includeZero: true,
+          height: 340,
+          emptyMessage: 'No latency samples are available yet. Submit a few requests and wait for Prometheus.',
+          metaText: summarizeSeries(json.series.latency_p95_ms || [])
+        });
+
+        setRateStats('requestRate', json.series.request_rate || []);
+        setDecisionStats(json.series.allowed_rate || [], json.series.denied_rate || []);
+        setLatencyStats(json.series.latency_p95_ms || []);
+      } catch (err) {
+        const message = String(err);
+        setText('requestRateValue', '--');
+        setText('allowedRateValue', '--');
+        setText('deniedRateValue', '--');
+        setText('latencyValue', '--');
+        setText('targetsValue', message);
+
+        renderChart('requestRateChart', 'requestRateMeta', [], {
+          valueFormatter: formatRate,
+          emptyMessage: 'Observability data is unavailable at the moment.',
+          emptyMeta: 'Observability data is unavailable at the moment.'
+        });
+        renderChart('allowedRateChart', 'allowedRateMeta', [], {
+          valueFormatter: formatRate,
+          emptyMessage: 'Observability data is unavailable at the moment.',
+          emptyMeta: 'Observability data is unavailable at the moment.'
+        });
+        renderChart('latencyChart', 'latencyMeta', [], {
+          valueFormatter: formatMs,
+          emptyMessage: 'Observability data is unavailable at the moment.',
+          emptyMeta: 'Observability data is unavailable at the moment.'
+        });
+        setText('requestRateLatest', '--');
+        setText('requestRatePeak', '--');
+        setText('requestRateAverage', '--');
+        setText('allowedRateLatest', '--');
+        setText('deniedRateLatest', '--');
+        setText('denyRatio', '--');
+        setText('latencyLatest', '--');
+        setText('latencyPeak', '--');
+        setText('latencyAverage', '--');
+      } finally {
+        observabilityInFlight = false;
+      }
+    }
+
+    configureHostLinks();
+    renderHistory();
+    applyScenario('token');
+    loadObservability();
+    window.setInterval(() => {
+      if (!document.hidden) {
+        loadObservability();
+      }
+    }, 5000);
+  </script>
 </body>
 </html>

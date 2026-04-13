@@ -17,7 +17,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 )
 
 type srv struct {
@@ -58,7 +60,7 @@ func (s *srv) Allow(ctx context.Context, req *ratelimitv1.AllowRequest) (*rateli
 	key := strings.TrimSpace(req.GetKey())
 	rule := strings.TrimSpace(req.GetRule())
 	if key == "" || rule == "" {
-		return nil, fmt.Errorf("key and rule required")
+		return nil, status.Error(codes.InvalidArgument, "key and rule required")
 	}
 	cost := req.GetCost()
 	if cost <= 0 {
@@ -67,15 +69,35 @@ func (s *srv) Allow(ctx context.Context, req *ratelimitv1.AllowRequest) (*rateli
 
 	parsed, err := limiter.ParseRule(rule)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	algo := parsed.Algo
 	switch req.GetAlgorithm() {
 	case ratelimitv1.Algorithm_TOKEN_BUCKET:
+		if parsed.Algo != limiter.AlgoTB {
+			return nil, status.Errorf(codes.InvalidArgument, "algorithm TOKEN_BUCKET does not match rule %q", rule)
+		}
 		algo = limiter.AlgoTB
 	case ratelimitv1.Algorithm_SLIDING_WINDOW:
+		if parsed.Algo != limiter.AlgoSW {
+			return nil, status.Errorf(codes.InvalidArgument, "algorithm SLIDING_WINDOW does not match rule %q", rule)
+		}
 		algo = limiter.AlgoSW
+	case ratelimitv1.Algorithm_ALGO_UNSPECIFIED:
+	default:
+		return nil, status.Error(codes.InvalidArgument, "unsupported algorithm")
+	}
+
+	switch algo {
+	case limiter.AlgoTB:
+		if cost > parsed.Capacity {
+			return nil, status.Errorf(codes.InvalidArgument, "cost %d exceeds token bucket capacity %d", cost, parsed.Capacity)
+		}
+	case limiter.AlgoSW:
+		if cost > parsed.Limit {
+			return nil, status.Errorf(codes.InvalidArgument, "cost %d exceeds sliding window limit %d", cost, parsed.Limit)
+		}
 	}
 
 	var res limiter.Result
@@ -89,10 +111,10 @@ func (s *srv) Allow(ctx context.Context, req *ratelimitv1.AllowRequest) (*rateli
 			redisKey(req.GetNamespace(), key, "sw"),
 			parsed.Limit, parsed.Window, parsed.TTL, cost)
 	default:
-		return nil, fmt.Errorf("unsupported algorithm")
+		return nil, status.Error(codes.InvalidArgument, "unsupported algorithm")
 	}
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Unavailable, err.Error())
 	}
 
 	allowedStr := "false"

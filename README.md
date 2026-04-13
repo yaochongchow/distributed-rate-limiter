@@ -2,15 +2,45 @@
 
 A high-performance, distributed rate limiting service built with Go and Redis. It uses a sliding window or token bucket algorithm to enforce rate limits across a cluster of service instances.
 
-## 🚀 Quick Start
+![Distributed Rate Limiter Demo](artifacts/demo.gif)
+
+## Overview
+
+This project exposes a gRPC `Allow` API backed by Redis and wraps it with:
+
+- a browser UI for building and submitting rate-limit requests
+- Envoy as the gRPC entrypoint and load balancer
+- Prometheus and Grafana for live metrics
+- Redis Cluster for shared distributed state
+
+The UI includes:
+
+- scenario presets and a rule builder
+- request validation and plain-language response explanations
+- collapsible guidance for request fields and algorithm selection
+- Redis key preview and algorithm comparison
+- recent request history and a local request timeline
+- live Prometheus-backed charts with direct links to Grafana, Prometheus, and Envoy
+
+## Quick Start
 
 ### 1. Start the Services
-This project uses Docker Compose to run the Rate Limiter service, Redis Cluster, Envoy, Prometheus, and Grafana.
+This project uses Docker Compose to run the rate limiter service, Redis Cluster, Envoy, Prometheus, Grafana, and the web UI.
 
 ```bash
 docker compose up -d --build
 ```
-> **Note**: Prometheus is configured to run on port **9091** to avoid conflicts with common local services.
+
+After startup:
+
+- Web UI: [http://localhost:8080](http://localhost:8080)
+- Grafana: [http://localhost:3000](http://localhost:3000)
+- Prometheus: [http://localhost:9091](http://localhost:9091)
+- Envoy Admin: [http://localhost:9901](http://localhost:9901)
+- gRPC endpoint: `localhost:50051`
+
+> **Note**: Prometheus is mapped to host port `9091` to avoid common local conflicts.
+> **Tip**: If host ports like `8080` or `50051` are already in use, override them when starting the stack, for example `WEBUI_PORT=8081 docker compose up -d --build`.
 
 ### 2. Scale the Rate Limiter
 You can scale the rate limiter application to simulate a distributed environment:
@@ -20,7 +50,7 @@ docker compose up -d --scale ratelimiter=10
 ```
 
 ### 3. Generate Traffic
-To populate metrics, run the included load generation script. This simulates traffic to the `webui` service, which forwards requests to the rate limiters.
+To populate metrics, run the included load generation script. This sends requests to the `webui` gateway, which forwards them through Envoy to the rate limiter service.
 
 ```bash
 # Make the script executable first
@@ -37,59 +67,86 @@ chmod +x ./generate_traffic.sh
 #!/bin/bash
 while true; do
   curl -s -X POST http://localhost:8080/api/allow \
-    -d '{"namespace":"myservice", "key":"user1", "rule":"limit:5,window:10", "algorithm":"SLIDING_WINDOW", "cost":1}' > /dev/null
+    -H 'Content-Type: application/json' \
+    -d '{"namespace":"myservice", "key":"user1", "rule":"5/10s", "algorithm":"AUTO", "cost":1}' > /dev/null
   echo -n "."
   sleep 0.2
 done
 ```
 </details>
 
-## 📊 Observability
+## API
 
-### Access Grafana
-*   **URL**: [http://localhost:3000](http://localhost:3000)
-    *   **User**: `admin`
-    *   **Password**: `admin`
+The public service contract is defined in [`proto/ratelimit.proto`](proto/ratelimit.proto):
 
-### Configure Dashboard
-1.  **Add Data Source**:
-    *   Go to **Connections > Data Sources > Add data source**.
-    *   Select **Prometheus**.
-    *   **URL**: `http://prometheus:9090` (internal docker DNS).
-    *   Click **Save & test**.
-2.  **Visualize Metrics**:
-    *   **Request Rate**: `rate(ratelimiter_requests_total[1m])`
-    *   **Latency**: `ratelimiter_allow_latency_seconds_bucket`
-
-## 🏗 Architecture
-
-The system consists of the following components:
-
-*   **Rate Limiter Service (`/cmd/ratelimiter`)**: A GRPC service that handles `Allow()` requests. It executes Lua scripts on Redis to enforce limits atomically.
-*   **Redis Cluster**: Stores the rate limit counters. Sharded to handle high throughput.
-*   **Envoy**: Acts as a load balancer for the rate limiter instances.
-*   **Web UI (`/cmd/webui`)**: A simple frontend and HTTP-to-GRPC gateway for testing.
-*   **Prometheus & Grafana**: Scrapes metrics from the rate limiters for monitoring.
-
-## 💻 Code Overview
-
-### `internal/limiter`
-Contains the core logic.
-*   **`limiter.go`**: Manages the Redis connection and loads Lua scripts.
-*   **Lua Scripts**:
-    *   `token_bucket.lua`: Implements the Token Bucket algorithm.
-    *   `sliding_window.lua`: Implements the Sliding Window algorithm.
-*   **`redis_client.go`**: Helper to initialize the Redis Cluster client.
-
-### `proto/ratelimit.proto`
-Defines the GRPC API contract.
 ```protobuf
 service RateLimitService {
   rpc Allow(AllowRequest) returns (AllowResponse);
 }
 ```
 
-## ⚠️ Troubleshooting
+Example HTTP request through the web UI gateway:
 
-*   **Build Error `undefined: getIndexHTML`**: This has been fixed in the codebase by using the embedded `indexHTML` variable directly.
-*   **Prometheus Port Conflict**: If port 9090 is in use, Prometheus is mapped to `9091` in `docker-compose.yml`. Use `localhost:9091` to access Prometheus directly.
+```bash
+curl -X POST http://localhost:8080/api/allow \
+  -H 'Content-Type: application/json' \
+  -d '{"namespace":"api","key":"user123","rule":"20rps","algorithm":"AUTO","cost":1}'
+```
+
+Supported rule formats:
+
+- `20rps` for token bucket
+- `5/10s` for sliding window
+
+## Observability
+
+### Access Grafana
+
+- URL: [http://localhost:3000](http://localhost:3000)
+- User: `admin`
+- Password: `admin`
+
+### Prometheus
+
+- URL: [http://localhost:9091](http://localhost:9091)
+- Example request-rate query: `sum(rate(ratelimiter_requests_total[1m]))`
+- Example latency query: `histogram_quantile(0.95, sum by (le) (rate(ratelimiter_allow_latency_seconds_bucket[5m])))`
+
+The web UI also exposes a built-in observability view with:
+
+- total request rate
+- allowed and denied rate
+- p95 latency
+- recent local request history
+- direct host links to Grafana, Prometheus, and Envoy
+
+## Architecture
+
+The system consists of the following components:
+
+- **Rate Limiter Service (`/cmd/ratelimiter`)**: gRPC service that handles `Allow()` requests and executes Redis Lua scripts atomically.
+- **Redis Cluster**: shared distributed state for token bucket and sliding-window data.
+- **Envoy**: load balances gRPC traffic across rate limiter instances.
+- **Web UI (`/cmd/webui`)**: browser UI plus HTTP-to-gRPC gateway for testing and demos.
+- **Prometheus and Grafana**: scrape and visualize service metrics.
+
+Request flow:
+
+`Browser -> Web UI -> Envoy -> Rate Limiter -> Redis`
+
+## Code Overview
+
+### `internal/limiter`
+Contains the core logic.
+
+- **`limiter.go`**: manages Redis script execution.
+- **`token_bucket.lua`**: token bucket enforcement.
+- **`sliding_window.lua`**: sliding-window enforcement.
+- **`redis_client.go`**: Redis Cluster client setup.
+- **`rules.go`**: parses rule formats such as `20rps` and `5/10s`.
+
+## Troubleshooting
+
+- **Port conflict**: if `8080`, `50051`, or another host port is already in use, override the published port when starting the stack.
+- **Prometheus host port**: Prometheus is mapped to `9091`, so use `localhost:9091` on the host.
+- **Metrics look sparse right after startup**: Prometheus scrapes every 5 seconds, so charts need a little time to fill in.
