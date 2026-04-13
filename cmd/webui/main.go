@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"log"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -15,7 +15,16 @@ import (
 	"time"
 
 	ratelimitv1 "example.com/distributed-rate-limiter/gen"
-
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -64,27 +73,84 @@ type promMatrixResult struct {
 	Values [][]any           `json:"values"`
 }
 
-func main() {
-	httpAddr := env("HTTP_ADDR", "0.0.0.0:8080")
-	grpcTarget := env("GRPC_TARGET", "envoy:50051") // internal docker DNS
-	promURL := env("PROMETHEUS_URL", "http://prometheus:9090")
-
-	conn, err := grpc.Dial(grpcTarget, grpc.WithInsecure())
+func initTracer(ctx context.Context, serviceName, instanceID string) (func(context.Context) error, error) {
+	endpoint := env("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+	if endpoint == "" {
+		return func(context.Context) error { return nil }, nil
+	}
+	exp, err := otlptracehttp.New(ctx,
+		otlptracehttp.WithEndpoint(endpoint),
+		otlptracehttp.WithInsecure(),
+	)
 	if err != nil {
-		log.Fatalf("grpc dial error: %v", err)
+		return nil, err
+	}
+	res, _ := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceName(serviceName),
+			semconv.ServiceInstanceID(instanceID),
+		),
+	)
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+	return tp.Shutdown, nil
+}
+
+func main() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
+	hostname, _ := os.Hostname()
+	log.Logger = zerolog.New(os.Stdout).With().
+		Str("service", "webui").
+		Str("instance", hostname).
+		Timestamp().
+		Logger()
+
+	httpAddr := env("HTTP_ADDR", "0.0.0.0:8080")
+	grpcTarget := env("GRPC_TARGET", "envoy:50051")
+	promURL := env("PROMETHEUS_URL", "http://prometheus:9090")
+	debugDashURL := env("DEBUG_DASHBOARD_URL", "http://debug-dashboard:4000")
+	streamerURL := env("STREAMER_URL", "http://streamer:8888")
+
+	ctx := context.Background()
+	shutdown, err := initTracer(ctx, "webui", hostname)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to init tracer")
+	}
+	defer shutdown(ctx) //nolint:errcheck
+
+	// gRPC client with OTel stats handler propagates trace context to the rate limiter.
+	conn, err := grpc.Dial(grpcTarget,
+		grpc.WithInsecure(),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("grpc dial failed")
 	}
 	defer conn.Close()
 
 	client := ratelimitv1.NewRateLimitServiceClient(conn)
-	mux := newMux(client, promURL)
 
-	log.Printf("webui listening on %s (grpc target %s)", httpAddr, grpcTarget)
-	log.Fatal(http.ListenAndServe(httpAddr, mux))
+	// Wrap mux with OTel HTTP instrumentation so every request gets a trace span.
+	handler := otelhttp.NewHandler(newMux(client, promURL, debugDashURL, streamerURL), "webui")
+
+	log.Info().Str("addr", httpAddr).Str("grpc_target", grpcTarget).Msg("webui listening")
+	if err := http.ListenAndServe(httpAddr, handler); err != nil {
+		log.Fatal().Err(err).Msg("http server failed")
+	}
 }
 
-func newMux(client ratelimitv1.RateLimitServiceClient, promURL string) *http.ServeMux {
+func newMux(client ratelimitv1.RateLimitServiceClient, promURL, debugDashURL, streamerURL string) *http.ServeMux {
 	mux := http.NewServeMux()
 	promClient := &http.Client{Timeout: 3 * time.Second}
+	proxyClient := &http.Client{Timeout: 5 * time.Second}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -118,6 +184,7 @@ func newMux(client ratelimitv1.RateLimitServiceClient, promURL string) *http.Ser
 			return
 		}
 
+		start := time.Now()
 		ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
 		defer cancel()
 
@@ -128,6 +195,15 @@ func newMux(client ratelimitv1.RateLimitServiceClient, promURL string) *http.Ser
 			Algorithm: algo,
 			Cost:      ar.Cost,
 		})
+
+		log.Info().
+			Str("ns", ar.Namespace).
+			Str("key", ar.Key).
+			Str("algo", ar.Algorithm).
+			Int64("latency_us", time.Since(start).Microseconds()).
+			Bool("error", err != nil).
+			Msg("api/allow")
+
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
 			w.WriteHeader(httpStatusFromGRPCError(err))
@@ -153,7 +229,55 @@ func newMux(client ratelimitv1.RateLimitServiceClient, promURL string) *http.Ser
 		_ = json.NewEncoder(w).Encode(payload)
 	})
 
+	// Proxy routes — forward to debug-dashboard and streamer via internal Docker DNS.
+	mux.HandleFunc("/api/service-health", proxyJSON(proxyClient, debugDashURL+"/api/health"))
+	mux.HandleFunc("/api/active-alerts", proxyJSON(proxyClient, debugDashURL+"/api/alerts"))
+	mux.HandleFunc("/api/recent-logs", proxyJSON(proxyClient, debugDashURL+"/api/logs"))
+	mux.HandleFunc("/api/chaos/status", proxyJSON(proxyClient, debugDashURL+"/api/chaos/status"))
+	mux.HandleFunc("/api/chaos/kill-ratelimiter", proxyJSON(proxyClient, debugDashURL+"/api/chaos/kill-ratelimiter"))
+	mux.HandleFunc("/api/chaos/kill-redis", proxyJSON(proxyClient, debugDashURL+"/api/chaos/kill-redis"))
+	mux.HandleFunc("/api/chaos/restore", proxyJSON(proxyClient, debugDashURL+"/api/chaos/restore"))
+	mux.HandleFunc("/api/stream-stats", proxyJSON(proxyClient, streamerURL+"/api/stats"))
+
 	return mux
+}
+
+// proxyJSON forwards a request to targetURL and streams the JSON response back.
+// Query string and request body are forwarded as-is.
+func proxyJSON(httpClient *http.Client, targetURL string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		u := targetURL
+		if r.URL.RawQuery != "" {
+			u += "?" + r.URL.RawQuery
+		}
+
+		req, err := http.NewRequestWithContext(ctx, r.Method, u, r.Body)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
+		if ct := r.Header.Get("Content-Type"); ct != "" {
+			req.Header.Set("Content-Type", ct)
+		}
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	}
 }
 
 func loadObservability(ctx context.Context, client *http.Client, promURL string) (observabilityResp, error) {

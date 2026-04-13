@@ -51,6 +51,7 @@ services:
       - REDIS_ADDRS=redis-1:7001,redis-2:7002,redis-3:7003,redis-4:7004,redis-5:7005,redis-6:7006
       - GRPC_ADDR=0.0.0.0:50051
       - METRICS_ADDR=0.0.0.0:2112
+      - OTEL_EXPORTER_OTLP_ENDPOINT=tempo:4318
     restart: unless-stopped
 
   envoy:
@@ -69,20 +70,102 @@ services:
     environment:
       - HTTP_ADDR=0.0.0.0:8080
       - GRPC_TARGET=envoy:50051
+      - PROMETHEUS_URL=http://prometheus:9090
+      - OTEL_EXPORTER_OTLP_ENDPOINT=tempo:4318
+      - DEBUG_DASHBOARD_URL=http://debug-dashboard:4000
+      - STREAMER_URL=http://streamer:8888
     ports:
       - "${WEBUI_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  # ── Streamer: Redis Streams → WebSocket fan-out ──────────────────────
+  streamer:
+    build: .
+    entrypoint: ["/streamer"]
+    depends_on:
+      redis-cluster-init:
+        condition: service_completed_successfully
+    environment:
+      - REDIS_ADDRS=redis-1:7001,redis-2:7002,redis-3:7003,redis-4:7004,redis-5:7005,redis-6:7006
+      - HTTP_ADDR=0.0.0.0:8888
+    ports:
+      - "${STREAMER_PORT:-8888}:8888"
     restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
     ports:
       - "${PROMETHEUS_PORT:-9091}:9090"
     depends_on: [ratelimiter]
 
+  # ── AlertManager ─────────────────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:latest
+    volumes:
+      - ./deploy/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --log.level=warn
+
+  # ── Loki: log aggregation ─────────────────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./deploy/loki/loki.yml:/etc/loki/loki.yml:ro
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+
+  # ── Promtail: ships Docker container logs → Loki ──────────────────────
+  promtail:
+    image: grafana/promtail:latest
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes:
+      - ./deploy/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+
+  # ── Tempo: distributed tracing backend ───────────────────────────────
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./deploy/tempo/tempo.yml:/etc/tempo.yml:ro
+    ports:
+      - "${TEMPO_PORT:-3200}:3200"   # HTTP API / Grafana data source
+      - "4317:4317"                  # OTLP gRPC
+      - "4318:4318"                  # OTLP HTTP ← Go services export here
+
   grafana:
     image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
-    depends_on: [prometheus]
+    depends_on: [prometheus, loki, tempo, alertmanager]
+
+  # ── Debug Dashboard: Node.js observability + chaos UI ────────────────
+  debug-dashboard:
+    build: ./services/debug-dashboard
+    environment:
+      - PORT=4000
+      - PROMETHEUS_URL=http://prometheus:9090
+      - ALERTMANAGER_URL=http://alertmanager:9093
+      - LOKI_URL=http://loki:3100
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "${DEBUG_DASHBOARD_PORT:-4000}:4000"
+    depends_on: [prometheus, alertmanager, loki]
+    restart: unless-stopped

@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debug Dashboard — Rate Limiter</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --border2: #21262d;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --blue:    #58a6ff;
+    --green:   #3fb950;
+    --red:     #f85149;
+    --yellow:  #d29922;
+    --purple:  #bc8cff;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── Nav ── */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    height: 52px;
+  }
+  nav .brand {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 32px;
+  }
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.84rem;
+    padding: 0 14px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  nav a:hover  { color: var(--text); }
+  nav a.active { color: var(--text); border-bottom-color: var(--blue); }
+  nav .spacer  { flex: 1; }
+  nav .ws-status {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: #1a3a2a;
+    color: var(--green);
+    border: 1px solid #2a5a3a;
+  }
+
+  /* ── Page ── */
+  .page { max-width: 1300px; margin: 0 auto; padding: 24px; }
+
+  .section { margin-bottom: 28px; }
+  .section-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--muted);
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border2);
+  }
+
+  /* ── Health cards ── */
+  .health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .health-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: border-color .2s;
+  }
+  .health-card.up   { border-left: 3px solid var(--green); }
+  .health-card.down { border-left: 3px solid var(--red); }
+  .health-card.unknown { border-left: 3px solid var(--border); }
+
+  .h-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .h-dot.up      { background: var(--green); box-shadow: 0 0 6px var(--green)44; }
+  .h-dot.down    { background: var(--red);   box-shadow: 0 0 6px var(--red)44; animation: blink .9s infinite; }
+  .h-dot.unknown { background: var(--border); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  .h-name   { font-size: 0.88rem; font-weight: 600; }
+  .h-detail { font-size: 0.74rem; color: var(--muted); margin-top: 2px; }
+
+  /* ── Metrics ── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 10px;
+  }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 13px 16px;
+  }
+  .metric-card .ml { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .metric-card .mv { font-size: 1.5rem; font-weight: 700; color: var(--blue); margin-top: 5px; }
+
+  /* ── Chart ── */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .chart-hdr {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border2);
+    font-size: 0.78rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .chart-legend { display: flex; gap: 14px; }
+  .chart-legend span {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 0.72rem; color: var(--muted);
+  }
+  .chart-legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+  canvas { display: block; width: 100%; }
+
+  /* ── Alerts ── */
+  .alerts-list { display: flex; flex-direction: column; gap: 8px; }
+  .alert-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .alert-item.critical { border-left: 3px solid var(--red); }
+  .alert-item.warning  { border-left: 3px solid var(--yellow); }
+  .abadge {
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 0.7rem; font-weight: 600; flex-shrink: 0; margin-top: 2px;
+  }
+  .abadge.critical { background: #3a1a1a; color: var(--red); }
+  .abadge.warning  { background: #2a2010; color: var(--yellow); }
+  .a-name { font-size: 0.88rem; font-weight: 600; }
+  .a-desc { font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+  .a-time { font-size: 0.72rem; color: var(--muted); margin-top: 5px; }
+  .no-alerts { color: var(--muted); font-size: 0.84rem; padding: 14px 0; }
+
+  /* ── Logs ── */
+  .log-bar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+  select, input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color .15s;
+  }
+  select:focus, input:focus { border-color: var(--blue); }
+
+  .btn {
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--border2);
+    color: var(--text);
+    transition: background .15s;
+  }
+  .btn:hover { background: var(--border); }
+
+  .log-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    overflow: hidden;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.79rem; }
+  thead { position: sticky; top: 0; background: #1c2128; z-index: 1; }
+  th {
+    padding: 8px 12px; text-align: left;
+    color: var(--muted); font-weight: 500;
+    font-size: 0.69rem; text-transform: uppercase; letter-spacing: .05em;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 6px 12px; border-bottom: 1px solid var(--border2); }
+  tr:last-child td { border-bottom: none; }
+  .l-ts  { color: var(--muted); font-family: monospace; white-space: nowrap; }
+  .l-svc { color: var(--blue); font-weight: 500; }
+  .l-msg { font-family: monospace; word-break: break-all; color: var(--text); }
+  .lv-info  { color: var(--green);  font-size: 0.7rem; font-weight: 600; }
+  .lv-warn  { color: var(--yellow); font-size: 0.7rem; font-weight: 600; }
+  .lv-error { color: var(--red);    font-size: 0.7rem; font-weight: 600; }
+
+  /* ── Chaos ── */
+  .chaos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .chaos-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 16px;
+  }
+  .chaos-card h3 { font-size: 0.92rem; font-weight: 700; margin-bottom: 5px; }
+  .chaos-card p  { font-size: 0.78rem; color: var(--muted); line-height: 1.5; margin-bottom: 14px; }
+  .chaos-btn {
+    display: block; width: 100%;
+    padding: 8px; border-radius: 7px;
+    font-size: 0.84rem; font-weight: 600;
+    cursor: pointer; text-align: center;
+    border: 1px solid; transition: all .15s;
+  }
+  .chaos-btn.danger { background: #3a1a1a; color: var(--red);    border-color: #6e2a2a; }
+  .chaos-btn.danger:hover { background: #4a2020; }
+  .chaos-btn.warn   { background: #2a2010; color: var(--yellow); border-color: #5a4010; }
+  .chaos-btn.warn:hover   { background: #3a3010; }
+  .chaos-btn.safe   { background: #1a3a2a; color: var(--green);  border-color: #2a6040; }
+  .chaos-btn.safe:hover   { background: #2a4a38; }
+  .chaos-out {
+    margin-top: 10px; font-size: 0.75rem; font-family: monospace;
+    padding: 7px 10px; border-radius: 6px;
+    background: var(--bg); color: var(--muted);
+    border: 1px solid var(--border2);
+    display: none; white-space: pre-wrap; word-break: break-all;
+  }
+
+  /* ── Containers ── */
+  .containers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .container-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 9px 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .c-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .c-dot.running { background: var(--green); }
+  .c-dot.exited  { background: var(--red); animation: blink .9s infinite; }
+  .c-name   { font-family: monospace; font-size: 0.8rem; flex: 1; }
+  .c-status { font-size: 0.72rem; color: var(--muted); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="/">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+    Rate Limiter
+  </a>
+  <a href="http://localhost:8080" target="_blank">Playground</a>
+  <a href="http://localhost:8888" target="_blank">Event Stream</a>
+  <a href="/" class="active">Debug</a>
+  <a href="http://localhost:3000" target="_blank">Grafana</a>
+  <div class="spacer"></div>
+  <span class="ws-status" id="ws-status">● Live</span>
+</nav>
+
+<div class="page">
+
+  <!-- Health -->
+  <div class="section">
+    <div class="section-title">Service Health</div>
+    <div class="health-grid">
+      <div class="health-card unknown" id="hc-ratelimiter">
+        <div class="h-dot unknown" id="hd-ratelimiter"></div>
+        <div>
+          <div class="h-name">Rate Limiter</div>
+          <div class="h-detail" id="ht-ratelimiter">checking…</div>
+        </div>
+      </div>
+      <div class="health-card unknown" id="hc-prometheus">
+        <div class="h-dot unknown" id="hd-prometheus"></div>
+        <div>
+          <div class="h-name">Prometheus</div>
+          <div class="h-detail" id="ht-prometheus">checking…</div>
+        </div>
+      </div>
+      <div class="health-card unknown" id="hc-alertmanager">
+        <div class="h-dot unknown" id="hd-alertmanager"></div>
+        <div>
+          <div class="h-name">AlertManager</div>
+          <div class="h-detail" id="ht-alertmanager">checking…</div>
+        </div>
+      </div>
+      <div class="health-card unknown" id="hc-loki">
+        <div class="h-dot unknown" id="hd-loki"></div>
+        <div>
+          <div class="h-name">Loki</div>
+          <div class="h-detail" id="ht-loki">checking…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="section">
+    <div class="section-title">Live Metrics</div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="ml">Request Rate</div>
+        <div class="mv" id="m-rps">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="ml">Allow Rate</div>
+        <div class="mv" id="m-allow" style="color:var(--green)">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="ml">P50 Latency</div>
+        <div class="mv" id="m-p50" style="color:var(--yellow)">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="ml">P95 Latency</div>
+        <div class="mv" id="m-p95" style="color:var(--yellow)">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="ml">P99 Latency</div>
+        <div class="mv" id="m-p99" style="color:var(--red)">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="ml">Instances Up</div>
+        <div class="mv" id="m-inst" style="color:var(--green)">—</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-hdr">
+        Request rate — last 60 seconds
+        <div class="chart-legend">
+          <span><div class="dot" style="background:var(--green)"></div>Allowed</span>
+          <span><div class="dot" style="background:var(--red)"></div>Denied</span>
+        </div>
+      </div>
+      <canvas id="rate-canvas" height="70"></canvas>
+    </div>
+  </div>
+
+  <!-- Alerts -->
+  <div class="section">
+    <div class="section-title">Active Alerts</div>
+    <div class="alerts-list" id="alert-list">
+      <div class="no-alerts">No active alerts</div>
+    </div>
+  </div>
+
+  <!-- Logs -->
+  <div class="section">
+    <div class="section-title">Recent Logs</div>
+    <div class="log-bar">
+      <select id="log-svc">
+        <option value="ratelimiter">ratelimiter</option>
+        <option value="webui">webui</option>
+        <option value="streamer">streamer</option>
+      </select>
+      <select id="log-lvl">
+        <option value="">All levels</option>
+        <option value="info">info</option>
+        <option value="warn">warn</option>
+        <option value="error">error</option>
+      </select>
+      <button class="btn" onclick="loadLogs()">Refresh</button>
+    </div>
+    <div class="log-card">
+      <table>
+        <thead><tr><th>Time</th><th>Level</th><th>Service</th><th>Message</th></tr></thead>
+        <tbody id="log-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Chaos -->
+  <div class="section">
+    <div class="section-title">Chaos Engineering</div>
+    <div class="chaos-grid">
+      <div class="chaos-card">
+        <h3>Kill Rate Limiter</h3>
+        <p>Stops a random ratelimiter container. Docker Compose will restart it after a brief outage.</p>
+        <div class="chaos-btn danger" onclick="chaos('kill-ratelimiter')">Kill Instance</div>
+        <div class="chaos-out" id="r-kill-ratelimiter"></div>
+      </div>
+      <div class="chaos-card">
+        <h3>Kill Redis Node</h3>
+        <p>Stops a random Redis cluster node to test cluster failover and replica promotion.</p>
+        <div class="chaos-btn warn" onclick="chaos('kill-redis')">Kill Redis Node</div>
+        <div class="chaos-out" id="r-kill-redis"></div>
+      </div>
+      <div class="chaos-card">
+        <h3>Restore All</h3>
+        <p>Restarts all stopped containers and returns the cluster to full capacity.</p>
+        <div class="chaos-btn safe" onclick="chaos('restore')">Restore All</div>
+        <div class="chaos-out" id="r-restore"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Containers -->
+  <div class="section">
+    <div class="section-title">Container Status</div>
+    <div class="containers-grid" id="containers-grid">
+      <div style="color:var(--muted);font-size:.82rem">Loading…</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// ── WebSocket ──
+let ws;
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/alerts`);
+  ws.onclose = () => { $('ws-status').textContent = '● Offline'; setTimeout(connectWS, 3000); };
+  ws.onopen  = () => { $('ws-status').textContent = '● Live'; };
+  ws.onmessage = ({ data }) => {
+    const d = JSON.parse(data);
+    if (d.type === 'alerts')  renderAlerts(d.alerts);
+    if (d.type === 'metrics') {
+      const rps = d.request_rate || 0;
+      const ar  = isNaN(d.allow_rate) ? 0 : d.allow_rate;
+      pushChart(rps * ar, rps * (1 - ar));
+    }
+  };
+}
+connectWS();
+
+// ── Health ──
+async function checkHealth() {
+  try {
+    const r = await fetch('/api/health');
+    const d = await r.json();
+    for (const [svc, info] of Object.entries(d.services)) {
+      const card   = $('hc-' + svc);
+      const dot    = $('hd-' + svc);
+      const detail = $('ht-' + svc);
+      if (!card) continue;
+      card.className = 'health-card ' + info.status;
+      dot.className  = 'h-dot ' + info.status;
+      detail.textContent = info.instances != null
+        ? info.instances + ' instance' + (info.instances !== 1 ? 's' : '')
+        : info.status;
+    }
+  } catch {}
+}
+checkHealth();
+setInterval(checkHealth, 5000);
+
+// ── Metrics ──
+async function loadMetrics() {
+  try {
+    const r = await fetch('/api/metrics/summary');
+    const d = await r.json();
+    $('m-rps').textContent  = d.request_rate.toFixed(1) + ' rps';
+    $('m-allow').textContent= isNaN(d.allow_rate) ? '—' : (d.allow_rate * 100).toFixed(1) + '%';
+    $('m-p50').textContent  = d.latency_p50_ms.toFixed(2) + 'ms';
+    $('m-p95').textContent  = d.latency_p95_ms.toFixed(2) + 'ms';
+    $('m-p99').textContent  = d.latency_p99_ms.toFixed(2) + 'ms';
+    $('m-inst').textContent = d.active_instances;
+  } catch {}
+}
+loadMetrics();
+setInterval(loadMetrics, 5000);
+
+// ── Chart ──
+const canvas   = $('rate-canvas');
+const ctx      = canvas.getContext('2d');
+const aData    = new Array(60).fill(0);
+const dData    = new Array(60).fill(0);
+
+function pushChart(a, d) { aData.push(a); aData.shift(); dData.push(d); dData.shift(); drawChart(); }
+
+function drawChart() {
+  const W = canvas.offsetWidth || 800;
+  const H = 70;
+  canvas.width = W; canvas.height = H;
+  const max  = Math.max(...aData, ...dData, 1);
+  const step = W / (aData.length - 1);
+
+  const draw = (data, color, fill) => {
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = i * step;
+      const y = H - (v / max) * (H - 4) - 2;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    if (fill) { ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); }
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+  };
+
+  ctx.clearRect(0, 0, W, H);
+  draw(dData, '#f85149', '#f8514920');
+  draw(aData, '#3fb950', '#3fb95020');
+}
+
+setInterval(drawChart, 1000);
+
+// ── Alerts ──
+function renderAlerts(alerts) {
+  const el = $('alert-list');
+  if (!alerts?.length) { el.innerHTML = '<div class="no-alerts">No active alerts — system healthy</div>'; return; }
+  el.innerHTML = alerts.map(a => {
+    const sev  = a.labels?.severity || 'warning';
+    const name = a.labels?.alertname || 'Unknown';
+    const desc = a.annotations?.description || a.annotations?.summary || '';
+    const ts   = a.startsAt ? new Date(a.startsAt).toLocaleTimeString() : '—';
+    return `<div class="alert-item ${sev}">
+      <span class="abadge ${sev}">${sev.toUpperCase()}</span>
+      <div>
+        <div class="a-name">${esc(name)}</div>
+        <div class="a-desc">${esc(desc)}</div>
+        <div class="a-time">Since ${ts}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function pollAlerts() {
+  try { const r = await fetch('/api/alerts'); const a = await r.json(); if (Array.isArray(a)) renderAlerts(a); } catch {}
+}
+setInterval(pollAlerts, 10000);
+
+// ── Logs ──
+async function loadLogs() {
+  const svc = $('log-svc').value;
+  const lvl = $('log-lvl').value;
+  const tbody = $('log-body');
+  tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);padding:12px">Loading…</td></tr>';
+  try {
+    const r    = await fetch(`/api/logs?service=${encodeURIComponent(svc)}&level=${encodeURIComponent(lvl)}`);
+    const logs = await r.json();
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);padding:12px">No logs found</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(l => {
+      let p = {}; try { p = JSON.parse(l.line); } catch { p = { message: l.line }; }
+      const ts  = new Date(Number(l.ts) / 1e6).toLocaleTimeString();
+      const lvl = p.level || '';
+      const svcLabel = p.service || svc;
+      const msg = p.message || p.msg || l.line || '';
+      return `<tr>
+        <td class="l-ts">${esc(ts)}</td>
+        <td><span class="lv-${lvl || 'info'}">${esc(lvl || '—')}</span></td>
+        <td class="l-svc">${esc(svcLabel)}</td>
+        <td class="l-msg">${esc(msg.slice(0, 200))}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--red);padding:12px">${esc(e.message)}</td></tr>`;
+  }
+}
+loadLogs();
+setInterval(loadLogs, 10000);
+
+// ── Containers ──
+async function loadContainers() {
+  try {
+    const r = await fetch('/api/chaos/status');
+    const d = await r.json();
+    if (!d.available) {
+      $('containers-grid').innerHTML = '<div style="color:var(--muted);font-size:.82rem">Docker socket unavailable</div>';
+      return;
+    }
+    $('containers-grid').innerHTML = d.containers.map(c => {
+      const state = c.state === 'running' ? 'running' : 'exited';
+      const name  = c.name.replace(/^\//, '');
+      return `<div class="container-item">
+        <div class="c-dot ${state}"></div>
+        <div class="c-name">${esc(name)}</div>
+        <div class="c-status">${esc(c.status)}</div>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+loadContainers();
+setInterval(loadContainers, 5000);
+
+// ── Chaos ──
+async function chaos(action) {
+  const out = $('r-' + action);
+  out.style.display = 'block';
+  out.textContent   = 'Running…';
+  try {
+    const r = await fetch(`/api/chaos/${action}`, { method: 'POST' });
+    const d = await r.json();
+    out.textContent = JSON.stringify(d, null, 2);
+    loadContainers();
+  } catch (e) {
+    out.textContent = 'Error: ' + e.message;
+  }
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

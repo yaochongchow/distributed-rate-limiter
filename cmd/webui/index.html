@@ -556,7 +556,7 @@
     }
 
     .link-row {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     }
 
     .link-chip {
@@ -878,6 +878,264 @@
         display: none;
       }
     }
+
+    /* ── Service Health ── */
+    .health-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .health-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-soft);
+      font-size: 13px;
+    }
+    .health-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .health-dot.up   { background: #27a76b; box-shadow: 0 0 0 3px rgba(39,167,107,.18); }
+    .health-dot.down { background: #d94040; box-shadow: 0 0 0 3px rgba(217,64,64,.18); }
+    .health-dot.unknown { background: var(--muted); }
+    .health-label { font-weight: 600; color: var(--text); }
+    .health-extra { color: var(--muted); font-size: 11px; }
+    .health-error { color: var(--muted); font-size: 13px; padding: 6px 0; }
+
+    /* ── WebSocket status badge ── */
+    .ws-badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .03em;
+    }
+    .ws-badge.connecting  { background: var(--surface-soft); color: var(--muted); }
+    .ws-badge.connected   { background: var(--ok-bg);       color: var(--ok-text); }
+    .ws-badge.disconnected{ background: var(--danger-bg);   color: var(--danger-text); }
+
+    /* ── Event table ── */
+    .event-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0 8px;
+      flex-wrap: wrap;
+    }
+    .event-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .event-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .event-table thead th {
+      position: sticky;
+      top: 0;
+      background: var(--surface-soft);
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    .event-table tbody tr {
+      border-bottom: 1px solid var(--line);
+      transition: background .1s;
+    }
+    .event-table tbody tr:last-child { border-bottom: none; }
+    .event-table tbody tr:hover { background: var(--surface-soft); }
+    .event-table td {
+      padding: 6px 12px;
+      white-space: nowrap;
+      color: var(--text);
+    }
+    .event-empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 28px;
+      font-size: 13px;
+    }
+    .event-counter {
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: auto;
+    }
+
+    /* ── Pills ── */
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .03em;
+    }
+    .pill-tb      { background: #e8f0fb; color: var(--blue); }
+    .pill-sw      { background: var(--surface-soft); color: var(--muted); }
+    .pill-allowed { background: var(--ok-bg);     color: var(--ok-text); }
+    .pill-denied  { background: var(--danger-bg); color: var(--danger-text); }
+
+    /* ── Alerts ── */
+    .alerts-list { display: grid; gap: 8px; margin-top: 14px; }
+    .alert-item {
+      padding: 11px 14px;
+      border-radius: 10px;
+      border-left: 4px solid var(--line);
+      background: var(--surface-soft);
+    }
+    .alert-item.sev-critical { border-color: #d94040; background: var(--danger-bg); }
+    .alert-item.sev-warning  { border-color: var(--amber); background: var(--warn-bg); }
+    .alert-item.sev-info     { border-color: var(--blue);  background: #edf2fb; }
+    .alert-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .alert-name  { font-weight: 700; font-size: 13px; }
+    .alert-sev   { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .06em; }
+    .sev-critical .alert-sev { background: var(--danger-text); color: #fff; }
+    .sev-warning  .alert-sev { background: var(--amber);       color: #fff; }
+    .sev-info     .alert-sev { background: var(--blue);        color: #fff; }
+    .alert-summary { font-size: 12px; color: var(--text); }
+    .alert-since   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .alerts-empty  { color: var(--muted); font-size: 13px; padding: 12px 0; }
+
+    /* ── Logs ── */
+    .logs-wrap {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      max-height: 280px;
+      overflow-y: auto;
+      background: #1a1f26;
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 11.5px;
+    }
+    .log-line {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 4px 12px;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+    }
+    .log-line:last-child { border-bottom: none; }
+    .log-time   { color: #5a7a9a; flex-shrink: 0; }
+    .log-level  {
+      flex-shrink: 0;
+      width: 38px;
+      font-weight: 700;
+      font-size: 10px;
+      text-align: center;
+    }
+    .log-level-info  { color: #4ec9b0; }
+    .log-level-warn  { color: #ddb74e; }
+    .log-level-error { color: #f44747; }
+    .log-msg    { color: #d4d4d4; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-detail { color: #6a9955; flex-shrink: 0; font-size: 10.5px; }
+    .logs-empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+    .log-filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .log-filter-row select {
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    /* ── Chaos Engineering ── */
+    .chaos-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 14px 0;
+    }
+    .chaos-btn {
+      padding: 9px 18px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+    }
+    .chaos-btn:hover:not(:disabled) { filter: brightness(.96); }
+    .chaos-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .chaos-btn.danger  { background: var(--danger-bg);  color: var(--danger-text); border-color: rgba(166,43,43,.25); }
+    .chaos-btn.warn    { background: var(--warn-bg);    color: var(--warn-text);   border-color: rgba(166,98,20,.25); }
+    .chaos-btn.restore { background: var(--ok-bg);      color: var(--ok-text);     border-color: rgba(22,98,69,.25); }
+    .chaos-result {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      min-height: 18px;
+    }
+    .chaos-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .chaos-table th {
+      background: var(--surface-soft);
+      padding: 7px 12px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+    }
+    .chaos-table td {
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+    }
+    .chaos-table tbody tr:last-child td { border-bottom: none; }
+    .chaos-table-wrap {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .chaos-unavail { color: var(--muted); font-size: 13px; padding: 8px 0; }
+
+    /* ── Two-column observability layout ── */
+    .obs-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 768px) {
+      .obs-two-col { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -887,10 +1145,12 @@
       <h1>Submit a request and review the rate-limit decision.</h1>
       <p>
         This interface submits requests through the HTTP gateway, forwards them through Envoy and gRPC,
-        and returns a Redis-backed rate-limit decision. The page also includes live operational data
-        from Prometheus and direct host links to Grafana, Prometheus, and Envoy.
+        and returns a Redis-backed rate-limit decision. Every decision is also published to a Redis Stream
+        and delivered in real time to the <a href="#" id="streamerHeroLink" target="_blank" rel="noreferrer" style="color:var(--accent)">Live Event Stream</a>.
+        The system ships structured logs to Loki, distributed traces to Tempo, and fires alerts through
+        AlertManager — all visible in the <a href="#" id="debugHeroLink" target="_blank" rel="noreferrer" style="color:var(--accent)">Debug Dashboard</a> and Grafana.
       </p>
-      <div class="architecture">
+      <div class="architecture" style="grid-template-columns: repeat(7, minmax(0, 1fr))">
         <div class="arch-step">
           <strong>1. Browser</strong>
           Define the request and submit it from this page.
@@ -901,15 +1161,23 @@
         </div>
         <div class="arch-step">
           <strong>3. Envoy</strong>
-          Envoy forwards gRPC traffic to the rate limiter service.
+          Forwards gRPC traffic across all rate-limiter replicas.
         </div>
         <div class="arch-step">
           <strong>4. Rate Limiter</strong>
-          The service parses the rule and selects the algorithm.
+          Parses the rule, runs the algorithm, publishes an event.
         </div>
         <div class="arch-step">
           <strong>5. Redis</strong>
-          Redis stores shared counters and returns the final decision.
+          Stores shared counters and the <code>rl:events</code> stream.
+        </div>
+        <div class="arch-step">
+          <strong>6. Streamer</strong>
+          Reads the stream and fans out to WebSocket clients.
+        </div>
+        <div class="arch-step">
+          <strong>7. Observability</strong>
+          Prometheus · Loki · Tempo · AlertManager · Grafana.
         </div>
       </div>
     </section>
@@ -1178,13 +1446,25 @@
     <section class="card">
       <div class="section-head">
         <h2>Observability</h2>
-        <div class="section-copy">Live metrics are streamed from Prometheus. Direct host links are included below.</div>
+        <div class="section-copy">Live metrics from Prometheus. Each decision is also streamed in real time and traceable end-to-end through Loki and Tempo.</div>
       </div>
 
       <div class="link-row">
+        <a id="streamerLink" class="link-chip" target="_blank" rel="noreferrer" style="border-color:rgba(31,111,95,.3);background:var(--surface-accent)">
+          <strong>⚡ Event Stream</strong>
+          Live WebSocket feed of every rate-limit decision.
+        </a>
+        <a id="debugLink" class="link-chip" target="_blank" rel="noreferrer" style="border-color:rgba(31,111,95,.3);background:var(--surface-accent)">
+          <strong>🔍 Debug Dashboard</strong>
+          Logs · alerts · chaos engineering · container status.
+        </a>
         <a id="grafanaLink" class="link-chip" target="_blank" rel="noreferrer">
           <strong>Grafana</strong>
-          View dashboards and panel exploration on the host.
+          Metrics, logs, traces, and provisioned dashboards.
+        </a>
+        <a id="alertmanagerLink" class="link-chip" target="_blank" rel="noreferrer">
+          <strong>AlertManager</strong>
+          Active firing alerts and routing configuration.
         </a>
         <a id="prometheusLink" class="link-chip" target="_blank" rel="noreferrer">
           <strong>Prometheus</strong>
@@ -1311,6 +1591,100 @@
         </div>
       </div>
     </section>
+
+    <!-- ── Service Health ──────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="section-head">
+        <h2>Service Health</h2>
+        <div class="section-copy">Live status of every stack component. Refreshed every 5 seconds.</div>
+      </div>
+      <div id="healthGrid" class="health-grid">
+        <div class="health-item"><span class="health-dot unknown"></span><span class="health-label">Loading…</span></div>
+      </div>
+    </section>
+
+    <!-- ── Live Event Feed ─────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="section-head">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h2 style="margin:0">Live Event Feed</h2>
+          <span id="wsStatus" class="ws-badge connecting">Connecting…</span>
+        </div>
+        <div class="section-copy">Every rate-limit decision streamed in real time via WebSocket from the Redis Stream. Newest first.</div>
+      </div>
+      <div class="event-controls">
+        <label style="font-size:12px;color:var(--muted);font-weight:600">Filter</label>
+        <select id="evtFilterResult" style="padding:4px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:var(--surface);color:var(--text)">
+          <option value="">All</option>
+          <option value="allowed">Allowed only</option>
+          <option value="denied">Denied only</option>
+        </select>
+        <span id="eventCounter" class="event-counter">0 events</span>
+        <button onclick="clearEvents()" style="margin-left:auto;padding:4px 12px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:var(--surface);cursor:pointer;color:var(--muted)">Clear</button>
+      </div>
+      <div class="event-table-wrap">
+        <table class="event-table">
+          <thead>
+            <tr>
+              <th>Time</th><th>Namespace</th><th>Key</th><th>Algorithm</th>
+              <th>Result</th><th>Remaining</th><th>Latency</th><th>Instance</th>
+            </tr>
+          </thead>
+          <tbody id="eventTableBody">
+            <tr><td colspan="8" class="event-empty">Waiting for events — submit a request or run generate_traffic.sh.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Alerts + Logs ──────────────────────────────────────────────── -->
+    <div class="obs-two-col">
+      <section class="card">
+        <div class="section-head">
+          <h2>Active Alerts</h2>
+          <div class="section-copy">Firing alerts from AlertManager. Refreshed every 15 seconds.</div>
+        </div>
+        <div id="alertsList" class="alerts-list">
+          <div class="alerts-empty">Loading…</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Recent Logs</h2>
+          <div class="section-copy">Structured log lines from Loki. Refreshed every 15 seconds.</div>
+        </div>
+        <div class="log-filter-row">
+          <label style="font-size:12px;color:var(--muted);font-weight:600">Service</label>
+          <select id="logService" onchange="loadLogs()">
+            <option value="ratelimiter">ratelimiter</option>
+            <option value="webui">webui</option>
+            <option value="streamer">streamer</option>
+          </select>
+        </div>
+        <div id="logsList" class="logs-wrap">
+          <div class="log-line"><span class="log-msg" style="color:#5a7a9a">Loading…</span></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Chaos Engineering ──────────────────────────────────────────── -->
+    <section class="card">
+      <div class="section-head">
+        <h2>Chaos Engineering</h2>
+        <div class="section-copy">Deliberately kill containers to test fault tolerance and recovery. Restore all returns every exited container to running.</div>
+      </div>
+      <div class="chaos-controls">
+        <button class="chaos-btn danger"  onclick="chaosAction(this, '/api/chaos/kill-ratelimiter')">Kill Rate Limiter</button>
+        <button class="chaos-btn warn"    onclick="chaosAction(this, '/api/chaos/kill-redis')">Kill Redis Node</button>
+        <button class="chaos-btn restore" onclick="chaosAction(this, '/api/chaos/restore')">Restore All</button>
+      </div>
+      <div id="chaosResult" class="chaos-result"></div>
+      <div class="chaos-table-wrap">
+        <div id="chaosStatus" class="chaos-unavail" style="padding:12px">Loading container status…</div>
+      </div>
+    </section>
+
   </main>
 
   <script>
@@ -2335,6 +2709,11 @@
       document.getElementById('prometheusLink').href = `http://${host}:9091`;
       document.getElementById('envoyLink').href = `http://${host}:9901`;
       document.getElementById('grpcHost').textContent = `${host}:50051`;
+      document.getElementById('streamerLink').href = `http://${host}:8888`;
+      document.getElementById('debugLink').href = `http://${host}:4000`;
+      document.getElementById('alertmanagerLink').href = `http://${host}:9093`;
+      document.getElementById('streamerHeroLink').href = `http://${host}:8888`;
+      document.getElementById('debugHeroLink').href = `http://${host}:4000`;
     }
 
     async function loadObservability() {
@@ -2454,15 +2833,302 @@
       }
     }
 
+    // ── Service Health ────────────────────────────────────────────────
+
+    async function loadServiceHealth() {
+      try {
+        const res = await fetch('/api/service-health', { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'health unavailable');
+        renderHealth(json.services);
+      } catch (err) {
+        renderHealth(null, String(err));
+      }
+    }
+
+    function renderHealth(services, error) {
+      const el = document.getElementById('healthGrid');
+      if (error || !services) {
+        el.innerHTML = `<div class="health-error">${escapeHTML(error || 'Unavailable')}</div>`;
+        return;
+      }
+      const items = [
+        { key: 'ratelimiter',  label: 'Rate Limiter',  extra: s => s.instances != null ? `${s.instances} instance${s.instances !== 1 ? 's' : ''}` : '' },
+        { key: 'prometheus',   label: 'Prometheus',    extra: () => '' },
+        { key: 'alertmanager', label: 'AlertManager',  extra: () => '' },
+        { key: 'loki',         label: 'Loki',          extra: () => '' },
+      ];
+      el.innerHTML = items.map(item => {
+        const s = services[item.key] || {};
+        const up = s.status === 'up';
+        const extra = item.extra(s);
+        return `<div class="health-item">
+          <span class="health-dot ${up ? 'up' : 'down'}"></span>
+          <span class="health-label">${escapeHTML(item.label)}</span>
+          ${extra ? `<span class="health-extra">${escapeHTML(extra)}</span>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    // ── Live Event Feed ───────────────────────────────────────────────
+
+    let eventSocket = null;
+    let eventRows = [];
+    let totalEventCount = 0;
+    const MAX_EVENT_ROWS = 50;
+
+    function initEventStream() {
+      const host = window.location.hostname || 'localhost';
+      const wsURL = `ws://${host}:8888/ws/events`;
+      const statusEl = document.getElementById('wsStatus');
+
+      function connect() {
+        statusEl.textContent = 'Connecting…';
+        statusEl.className = 'ws-badge connecting';
+        try {
+          eventSocket = new WebSocket(wsURL);
+        } catch (_) {
+          statusEl.textContent = 'Unavailable';
+          statusEl.className = 'ws-badge disconnected';
+          return;
+        }
+        eventSocket.onopen = () => {
+          statusEl.textContent = 'Connected';
+          statusEl.className = 'ws-badge connected';
+        };
+        eventSocket.onmessage = (ev) => {
+          try {
+            const e = JSON.parse(ev.data);
+            totalEventCount++;
+            eventRows.unshift(e);
+            if (eventRows.length > MAX_EVENT_ROWS) eventRows.pop();
+            renderEventTable();
+          } catch (_) {}
+        };
+        eventSocket.onclose = () => {
+          statusEl.textContent = 'Reconnecting…';
+          statusEl.className = 'ws-badge disconnected';
+          setTimeout(connect, 2000);
+        };
+        eventSocket.onerror = () => { eventSocket.close(); };
+      }
+      connect();
+    }
+
+    function clearEvents() {
+      eventRows = [];
+      totalEventCount = 0;
+      renderEventTable();
+    }
+
+    function renderEventTable() {
+      const filter = document.getElementById('evtFilterResult').value;
+      const tbody = document.getElementById('eventTableBody');
+      document.getElementById('eventCounter').textContent = `${totalEventCount} event${totalEventCount !== 1 ? 's' : ''}`;
+
+      const rows = filter ? eventRows.filter(e => (filter === 'allowed') === e.allowed) : eventRows;
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="event-empty">${
+          filter ? 'No matching events yet.' : 'Waiting for events — submit a request or run generate_traffic.sh.'
+        }</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.map(e => {
+        const time = new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const algo = e.algo === 'token_bucket' ? 'TB' : 'SW';
+        const algoClass = e.algo === 'token_bucket' ? 'pill-tb' : 'pill-sw';
+        const lat = e.latency_us < 1000 ? `${e.latency_us}µs` : `${(e.latency_us / 1000).toFixed(1)}ms`;
+        const inst = (e.instance || '—').slice(0, 12);
+        return `<tr>
+          <td>${escapeHTML(time)}</td>
+          <td>${escapeHTML(e.ns || '—')}</td>
+          <td><code>${escapeHTML(e.key || '—')}</code></td>
+          <td><span class="pill ${algoClass}">${escapeHTML(algo)}</span></td>
+          <td><span class="pill ${e.allowed ? 'pill-allowed' : 'pill-denied'}">${e.allowed ? 'Allowed' : 'Denied'}</span></td>
+          <td>${e.remaining}</td>
+          <td>${escapeHTML(lat)}</td>
+          <td><code title="${escapeHTML(e.instance || '')}">${escapeHTML(inst)}</code></td>
+        </tr>`;
+      }).join('');
+    }
+
+    document.getElementById('evtFilterResult').addEventListener('change', renderEventTable);
+
+    // ── Active Alerts ─────────────────────────────────────────────────
+
+    async function loadAlerts() {
+      try {
+        const res = await fetch('/api/active-alerts', { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'alerts unavailable');
+        renderAlerts(Array.isArray(json) ? json : []);
+      } catch (err) {
+        document.getElementById('alertsList').innerHTML =
+          `<div class="alerts-empty">${escapeHTML(String(err))}</div>`;
+      }
+    }
+
+    function renderAlerts(alerts) {
+      const el = document.getElementById('alertsList');
+      if (!alerts.length) {
+        el.innerHTML = '<div class="alerts-empty">No active alerts — all clear.</div>';
+        return;
+      }
+      el.innerHTML = alerts.map(a => {
+        const name     = a.labels?.alertname || 'Unknown';
+        const severity = (a.labels?.severity || 'info').toLowerCase();
+        const summary  = a.annotations?.summary || a.annotations?.description || '';
+        const since    = a.startsAt ? new Date(a.startsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        return `<div class="alert-item sev-${escapeHTML(severity)}">
+          <div class="alert-header">
+            <span class="alert-name">${escapeHTML(name)}</span>
+            <span class="alert-sev">${escapeHTML(severity)}</span>
+          </div>
+          ${summary ? `<div class="alert-summary">${escapeHTML(summary)}</div>` : ''}
+          ${since   ? `<div class="alert-since">Since ${escapeHTML(since)}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    // ── Recent Logs ───────────────────────────────────────────────────
+
+    async function loadLogs() {
+      const service = document.getElementById('logService').value;
+      try {
+        const res = await fetch(`/api/recent-logs?service=${encodeURIComponent(service)}`, { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'logs unavailable');
+        renderLogs(Array.isArray(json) ? json : []);
+      } catch (err) {
+        const el = document.getElementById('logsList');
+        el.innerHTML = `<div class="log-line"><span class="log-msg" style="color:#f44747">${escapeHTML(String(err))}</span></div>`;
+      }
+    }
+
+    function renderLogs(logs) {
+      const el = document.getElementById('logsList');
+      if (!logs.length) {
+        el.innerHTML = `<div class="log-line"><span class="log-msg" style="color:#5a7a9a">No recent log lines. Generate some traffic to populate logs.</span></div>`;
+        return;
+      }
+      el.innerHTML = logs.slice(0, 40).map(entry => {
+        let parsed = {};
+        try { parsed = JSON.parse(entry.line); } catch (_) {}
+        const time  = new Date(Number(entry.ts) / 1e6).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const level = (parsed.level || 'info').toLowerCase();
+        const msg   = parsed.message || entry.line;
+        const parts = [];
+        if (parsed.ns)          parts.push(`ns=${parsed.ns}`);
+        if (parsed.key)         parts.push(`key=${parsed.key}`);
+        if (parsed.algo)        parts.push(`algo=${parsed.algo}`);
+        if (parsed.allowed != null) parts.push(`allowed=${parsed.allowed}`);
+        if (parsed.latency_us)  parts.push(`${(parsed.latency_us / 1000).toFixed(2)}ms`);
+        const detail = parts.join(' ');
+        return `<div class="log-line">
+          <span class="log-time">${escapeHTML(time)}</span>
+          <span class="log-level log-level-${escapeHTML(level)}">${escapeHTML(level.toUpperCase().slice(0, 4))}</span>
+          <span class="log-msg">${escapeHTML(msg)}</span>
+          ${detail ? `<span class="log-detail">${escapeHTML(detail)}</span>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    // ── Chaos Engineering ─────────────────────────────────────────────
+
+    async function loadChaosStatus() {
+      try {
+        const res = await fetch('/api/chaos/status', { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok || !json.available) {
+          document.getElementById('chaosStatus').innerHTML =
+            '<div class="chaos-unavail">Docker socket unavailable — chaos controls disabled.</div>';
+          return;
+        }
+        renderContainerStatus(json.containers || []);
+      } catch (err) {
+        document.getElementById('chaosStatus').innerHTML =
+          `<div class="chaos-unavail">${escapeHTML(String(err))}</div>`;
+      }
+    }
+
+    function renderContainerStatus(containers) {
+      const el = document.getElementById('chaosStatus');
+      if (!containers.length) {
+        el.innerHTML = '<div class="chaos-unavail">No compose containers found.</div>';
+        return;
+      }
+      el.innerHTML = `<table class="chaos-table">
+        <thead><tr><th>Container</th><th>State</th><th>Status</th></tr></thead>
+        <tbody>${containers.map(c => {
+          const name    = c.name.replace(/^\//, '').replace(/^[^-]+-/, '');
+          const running = c.state === 'running';
+          return `<tr>
+            <td><code>${escapeHTML(name)}</code></td>
+            <td><span class="health-dot ${running ? 'up' : 'down'}" style="display:inline-block;vertical-align:middle;margin-right:5px"></span>${escapeHTML(c.state)}</td>
+            <td style="color:var(--muted)">${escapeHTML(c.status)}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+    }
+
+    async function chaosAction(btn, endpoint) {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = '…';
+      const resultEl = document.getElementById('chaosResult');
+      resultEl.textContent = '';
+      try {
+        const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'request failed');
+        btn.textContent = '✓ Done';
+        const detail = json.killed || json.restored?.length != null ? ` (${json.killed || json.restored?.length + ' restored'})` : '';
+        resultEl.textContent = `Success${detail}`;
+        setTimeout(() => loadChaosStatus(), 1000);
+      } catch (err) {
+        btn.textContent = '✗ Failed';
+        resultEl.textContent = String(err);
+      }
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.disabled = false;
+        resultEl.textContent = '';
+      }, 2500);
+    }
+
+    // ── Initialisation ────────────────────────────────────────────────
+
     configureHostLinks();
     renderHistory();
     applyScenario('token');
+
     loadObservability();
+    loadServiceHealth();
+    loadAlerts();
+    loadLogs();
+    loadChaosStatus();
+    initEventStream();
+
     window.setInterval(() => {
       if (!document.hidden) {
         loadObservability();
+        loadServiceHealth();
       }
     }, 5000);
+
+    window.setInterval(() => {
+      if (!document.hidden) {
+        loadAlerts();
+        loadLogs();
+      }
+    }, 15000);
+
+    window.setInterval(() => {
+      if (!document.hidden) {
+        loadChaosStatus();
+      }
+    }, 10000);
   </script>
 </body>
 </html>

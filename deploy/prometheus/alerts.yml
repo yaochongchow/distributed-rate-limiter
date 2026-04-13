@@ -1,0 +1,67 @@
+groups:
+  - name: ratelimiter.rules
+    interval: 15s
+    rules:
+      - alert: HighDenyRate
+        expr: |
+          (
+            rate(ratelimiter_requests_total{allowed="false"}[1m])
+            /
+            rate(ratelimiter_requests_total[1m])
+          ) > 0.5
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "High deny rate on {{ $labels.instance }}"
+          description: "More than 50% of requests are being denied. Current rate: {{ $value | humanizePercentage }}"
+
+      - alert: HighLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            rate(ratelimiter_allow_latency_seconds_bucket[5m])
+          ) > 0.1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P99 latency"
+          description: "P99 Allow() latency is above 100ms. Current: {{ $value | humanizeDuration }}"
+
+      - alert: RateLimiterInstanceDown
+        expr: up{job="ratelimiter"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Rate limiter instance down"
+          description: "Instance {{ $labels.instance }} has been down for 30s"
+
+      - alert: NoRateLimiterInstances
+        expr: count(up{job="ratelimiter"} == 1) == 0
+        for: 10s
+        labels:
+          severity: critical
+        annotations:
+          summary: "All rate limiter instances are down"
+          description: "There are zero healthy rate limiter instances"
+
+      - alert: RequestRateSpike
+        expr: |
+          rate(ratelimiter_requests_total[1m]) > 5000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Request rate spike"
+          description: "Request rate exceeded 5000/s for 1 minute. Current: {{ $value | humanize }} rps"
+
+      - alert: HighErrorRate
+        expr: |
+          rate(ratelimiter_requests_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No traffic to rate limiter"
+          description: "Rate limiter has received no requests in the last 2 minutes"

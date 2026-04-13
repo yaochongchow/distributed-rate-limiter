@@ -1,0 +1,32 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 1h
+  receiver: 'debug-dashboard'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'debug-dashboard'
+      group_wait: 5s
+      repeat_interval: 5m
+    - match:
+        severity: warning
+      receiver: 'debug-dashboard'
+
+receivers:
+  - name: 'debug-dashboard'
+    webhook_configs:
+      - url: 'http://debug-dashboard:4000/api/alertmanager/webhook'
+        send_resolved: true
+        max_alerts: 50
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname']
