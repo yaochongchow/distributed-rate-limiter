@@ -1,68 +1,146 @@
 # Distributed Rate Limiter
 
-A high-performance, distributed rate limiting service built with Go and Redis. Enforces per-key limits across a cluster of service instances using atomic Lua scripts — with real-time event streaming, full observability, and chaos engineering built in.
+A distributed rate limiting platform built with **Go** and **Redis Cluster**.
+It enforces per-key limits across multiple service instances using **atomic Lua scripts**, then layers on a complete operational experience with a **web UI**, **live event streaming**, **metrics**, **logs**, **tracing**, **alerts**, and **chaos testing**.
 
 ![Distributed Rate Limiter Demo](artifacts/demo.gif)
 
-## Overview
+## Why this project stands out
 
-This project exposes a gRPC `Allow` API backed by Redis Cluster and wraps it with a complete operational platform:
+Most rate limiter projects stop at the core algorithm.
+This one goes further and shows how the system behaves in a real distributed environment.
 
-- **Rate Limiter** — gRPC service enforcing token bucket and sliding window limits atomically via Lua scripts
-- **Web UI** — unified browser interface: rate-limit playground, live event feed, service health, alerts, logs, and chaos controls — all in one page
-- **Event Streamer** — Redis Streams consumer that fans out real-time rate-limit decisions to WebSocket clients
-- **Debug Dashboard** — Node.js service backing the web UI's health, alert, log, and chaos proxy endpoints
-- **Envoy** — gRPC load balancer across rate limiter replicas
-- **Redis Cluster** — 6-node cluster (3 primaries, 3 replicas) for distributed shared state
-- **Prometheus + AlertManager** — metrics scraping and alert routing with pre-configured rules
-- **Grafana** — auto-provisioned dashboards with Prometheus, Loki, and Tempo data sources
-- **Loki + Promtail** — log aggregation; Promtail tails Docker container logs and ships structured JSON fields to Loki
-- **Tempo** — distributed tracing backend receiving OTLP spans from Go services
+- **Correctness across replicas** using Redis-backed shared state
+- **Multiple algorithms** with token bucket and sliding window support
+- **Real-time visibility** into every allow/deny decision
+- **Operational depth** with metrics, logs, traces, alerts, and fault injection
+
+## What is included
+
+| Component | Purpose |
+|---|---|
+| **Rate Limiter** | gRPC service that applies token bucket or sliding window rules atomically through Lua scripts |
+| **Web UI** | Main interface for testing requests, viewing decisions, checking health, reading logs, and triggering chaos actions |
+| **Streamer** | Consumes Redis Streams and pushes live rate-limit events to WebSocket clients |
+| **Debug Dashboard** | Node.js service that powers health, alerts, logs, and chaos endpoints |
+| **Envoy** | Load balances gRPC traffic across rate limiter replicas |
+| **Redis Cluster** | Shared distributed state across 6 nodes (3 primaries, 3 replicas) |
+| **Prometheus + AlertManager** | Metrics collection and alert routing |
+| **Grafana** | Dashboards for metrics, logs, and traces |
+| **Loki + Promtail** | Centralized log collection from containers |
+| **Tempo** | Distributed tracing backend for request flow analysis |
+
+## Architecture Diagram
+
+```mermaid
+flowchart LR
+    U[Browser]
+
+    subgraph App[Application Layer]
+        W[Web UI\nPort 8080]
+        E[Envoy\nPort 50051]
+        RL[Rate Limiter Replicas]
+        S[Streamer\nPort 8888]
+        D[Debug Dashboard\nPort 4000]
+    end
+
+    subgraph Data[Data Layer]
+        RC[(Redis Cluster)]
+        RS[(Redis Stream\nrl:events)]
+    end
+
+    subgraph Obs[Observability Layer]
+        P[Prometheus\nPort 9091]
+        A[AlertManager\nPort 9093]
+        PT[Promtail]
+        L[Loki\nPort 3100]
+        T[Tempo\nPort 3200]
+        G[Grafana\nPort 3000]
+    end
+
+    U -->|POST /api/allow| W
+    W -->|gRPC| E
+    E --> RL
+    RL -->|Lua scripts| RC
+    RL -->|XADD decisions| RS
+    S -->|XREADGROUP| RS
+    U -->|WebSocket live feed| S
+
+    W -->|proxy health / alerts / logs / chaos| D
+    D -->|container control| DC
+
+    RL -->|metrics| P
+    W -->|observability queries| P
+    P -->|alert rules| A
+    A -->|webhook| D
+
+    PT -->|container logs| L
+    RL -->|OTLP traces| T
+    W -->|OTLP traces| T
+
+    P --> G
+    L --> G
+    T --> G
+    A --> G
+```
+
+## How a request flows
+
+1. A client sends an `Allow` request through the **Web UI** or directly through **Envoy**.
+2. **Envoy** forwards the gRPC request to one of the **rate limiter replicas**.
+3. The selected replica evaluates the rule in **Redis Cluster** using an atomic **Lua script**.
+4. The decision is returned immediately to the caller.
+5. The replica also publishes the decision to **Redis Streams**, where the **streamer** picks it up and broadcasts it to the live event feed.
 
 ## Quick Start
 
-### 1. Start the stack
+### 1) Start the stack
 
 ```bash
 docker compose up -d --build
 ```
 
-The Redis cluster initializes automatically. All other services wait for it before starting.
+The Redis cluster initializes automatically. Other services wait until it is ready.
 
-### 2. Access the services
+### 2) Open the main services
 
-| Service | URL | Notes |
+| Service | URL | Purpose |
 |---|---|---|
-| **Web UI** | http://localhost:8080 | All-in-one interface — playground, events, health, alerts, logs, chaos |
-| Event Stream | http://localhost:8888 | Standalone real-time WebSocket dashboard |
-| Debug Dashboard | http://localhost:4000 | Standalone debug service UI |
-| Grafana | http://localhost:3000 | Pre-provisioned dashboards — login `admin` / `admin` |
-| Prometheus | http://localhost:9091 | Raw metrics and query explorer |
-| AlertManager | http://localhost:9093 | Active alerts and silences |
-| Envoy Admin | http://localhost:9901 | Proxy stats and cluster health |
-| gRPC endpoint | `localhost:50051` | Direct gRPC access via Envoy |
+| **Web UI** | http://localhost:8080 | Main app: playground, live events, health, alerts, logs, chaos |
+| **Streamer UI** | http://localhost:8888 | Standalone real-time event dashboard |
+| **Debug Dashboard** | http://localhost:4000 | Backend service for health, logs, alerts, and chaos |
+| **Grafana** | http://localhost:3000 | Dashboards, login `admin` / `admin` |
+| **Prometheus** | http://localhost:9091 | Metrics explorer |
+| **AlertManager** | http://localhost:9093 | Active alerts and silences |
+| **Envoy Admin** | http://localhost:9901 | Proxy stats and cluster health |
+| **gRPC Endpoint** | `localhost:50051` | Direct access through Envoy |
 
-> **Port conflicts**: any host port can be overridden at startup, for example `WEBUI_PORT=8081 GRAFANA_PORT=3001 docker compose up -d --build`.
+> Need different ports? Example:
+>
+> ```bash
+> WEBUI_PORT=8081 GRAFANA_PORT=3001 docker compose up -d --build
+> ```
 
-### 3. Scale the rate limiter
+### 3) Scale the rate limiter
 
 ```bash
 docker compose up -d --scale ratelimiter=3
 ```
 
-Envoy automatically load-balances across all instances. The live event feed in the web UI shows the `instance` field on each decision so you can see which replica handled each request.
+Envoy automatically balances traffic across replicas.
+The live event feed shows the `instance` field so you can see which replica handled each request.
 
-### 4. Generate traffic
+### 4) Generate traffic
 
 ```bash
 chmod +x ./generate_traffic.sh
 ./generate_traffic.sh
 ```
 
-This sends ~5 requests/sec through the web UI gateway. Open the web UI at http://localhost:8080 and watch decisions appear in the Live Event Feed in real time.
+This sends repeated requests through the Web UI gateway so you can watch decisions appear in real time.
 
 <details>
-<summary>generate_traffic.sh content</summary>
+<summary><strong>generate_traffic.sh</strong></summary>
 
 ```bash
 #!/bin/bash
@@ -74,81 +152,41 @@ while true; do
   sleep 0.2
 done
 ```
+
 </details>
 
-## Web UI
+## Web UI Highlights
 
-The web UI at http://localhost:8080 is a single page that surfaces every part of the system. It is the primary interface for the project.
+The Web UI is the main entry point for the project.
+It is designed to make both the limiter and the surrounding platform easy to understand.
 
 ### Rate-Limit Playground
 
-Submit `Allow` requests interactively:
-
-- **Scenario presets** — one-click token bucket, sliding window, and heavy-cost examples
-- **Rule builder** — fills the rule field from human-readable inputs; syncs back when you type directly
-- **Validation** — explains the rule in plain language, previews the Redis key, and blocks invalid submissions
-- **Algorithm comparison** — shows side-by-side projections for both algorithms under the current parameters
-- **Response explanation** — interprets `allowed`, `remaining`, and `retry_after_ms` in plain language
-- **Request history** — persisted to `localStorage`; shows a local timeline chart of past requests
-- **Usage examples** — auto-generated `curl` and JSON snippets for the current form values
-
-### Observability Charts
-
-Live metrics from Prometheus, refreshed every 5 seconds:
-
-- Total request rate, allowed rate, denied rate, p95 latency
-- 10-minute time series charts: request rate, allowed vs denied, p95 latency
-- Direct links to Grafana, Prometheus, AlertManager, Envoy Admin, and the streamer
-
-### Service Health
-
-Compact status panel showing a green/red dot for every backend component: Rate Limiter (with instance count), Prometheus, AlertManager, and Loki. Refreshed every 5 seconds via the `/api/service-health` proxy endpoint.
+- Build and send `Allow` requests interactively
+- Use presets for token bucket, sliding window, and heavier request costs
+- Validate rules before submission
+- Preview how both algorithms behave under the same inputs
+- See human-readable explanations of `allowed`, `remaining`, and `retry_after_ms`
+- Keep a local request history in `localStorage`
+- Copy generated `curl` and JSON examples
 
 ### Live Event Feed
 
-WebSocket connection to the streamer that shows every rate-limit decision as it happens:
+- Streams every decision over WebSocket
+- Shows timestamp, namespace, key, algorithm, result, remaining quota, latency, and handling replica
+- Supports filtering by allowed/denied result
+- Reconnects automatically if the connection drops
 
-| Column | Description |
-|---|---|
-| Time | Local timestamp |
-| Namespace | Request namespace |
-| Key | Rate-limit key |
-| Algorithm | `TB` (token bucket) or `SW` (sliding window) pill |
-| Result | `Allowed` or `Denied` pill |
-| Remaining | Tokens or slots left after this request |
-| Latency | End-to-end decision time |
-| Instance | Hostname of the ratelimiter replica (first 12 chars) |
+### Service Health, Alerts, and Logs
 
-Filter by result (all / allowed only / denied only), clear the table, and watch the event counter increment with every decision. The connection reconnects automatically if dropped.
-
-### Active Alerts
-
-Polls AlertManager every 15 seconds via `/api/active-alerts`. Each firing alert shows its name, severity badge (critical / warning / info), annotation summary, and start time.
-
-### Recent Logs
-
-Dark terminal-style log viewer pulling from Loki every 15 seconds via `/api/recent-logs`. Select the service (`ratelimiter`, `webui`, or `streamer`) from a dropdown. Each line shows:
-
-- Local timestamp
-- Color-coded level badge (`INFO` in teal, `WARN` in amber, `ERRO` in red)
-- Message
-- Parsed fields: `ns=`, `key=`, `algo=`, `allowed=`, latency
-
-### Chaos Engineering
-
-Buttons to deliberately kill containers and observe fault tolerance:
-
-| Button | Action |
-|---|---|
-| Kill Rate Limiter | Stops a random ratelimiter container |
-| Kill Redis Node | Stops a random redis-1 through redis-6 container |
-| Restore All | Starts every exited compose container |
-
-A container status table below the buttons shows the current state of every compose service, refreshed every 10 seconds. The web UI proxies all chaos calls to the debug-dashboard's Docker socket API so the browser never needs to know the debug service's port.
+- Health panel for core services
+- Active alerts pulled from AlertManager
+- Recent logs pulled from Loki
+- Chaos controls for killing or restoring containers
 
 ## API
 
-The service contract is defined in [`proto/ratelimit.proto`](proto/ratelimit.proto):
+The gRPC contract is defined in [`proto/ratelimit.proto`](proto/ratelimit.proto).
 
 ```protobuf
 service RateLimitService {
@@ -156,33 +194,33 @@ service RateLimitService {
 }
 ```
 
-**Request fields**
+### Request fields
 
 | Field | Type | Description |
 |---|---|---|
-| `namespace` | string | Isolation scope (e.g. `"api"`, `"payments"`) |
-| `key` | string | Per-entity identifier (e.g. user ID, IP address) |
-| `rule` | string | Limit rule — see formats below |
+| `namespace` | string | Isolation scope such as `api` or `payments` |
+| `key` | string | Identifier being limited, such as a user ID or IP |
+| `rule` | string | Limit rule, such as `20rps` or `5/10s` |
 | `algorithm` | enum | `TOKEN_BUCKET`, `SLIDING_WINDOW`, or `AUTO` |
-| `cost` | int64 | Tokens to consume per request (default `1`) |
+| `cost` | int64 | Cost of the request, defaults to `1` |
 
-**Rule formats**
+### Rule formats
 
 | Format | Algorithm | Example | Meaning |
 |---|---|---|---|
-| `{N}rps` | Token Bucket | `100rps` | 100 tokens/sec, burst = 200 |
-| `{N}/{D}s` | Sliding Window | `5/10s` | 5 requests per 10-second window |
+| `{N}rps` | Token Bucket | `100rps` | Refill at 100 tokens per second, burst = 200 |
+| `{N}/{D}s` | Sliding Window | `5/10s` | Allow 5 requests over a 10-second window |
 
-**Response fields**
+### Response fields
 
 | Field | Type | Description |
 |---|---|---|
-| `allowed` | bool | Whether this request is permitted |
-| `remaining` | int64 | Tokens or slots remaining after this request |
-| `retry_after_ms` | int64 | Milliseconds until a denied request can retry |
-| `algorithm_used` | string | Which algorithm was applied |
+| `allowed` | bool | Whether the request is permitted |
+| `remaining` | int64 | Remaining tokens or slots after this request |
+| `retry_after_ms` | int64 | How long a denied caller should wait before retrying |
+| `algorithm_used` | string | Which algorithm was actually applied |
 
-**Example via HTTP gateway**
+### Example request
 
 ```bash
 curl -X POST http://localhost:8080/api/allow \
@@ -190,56 +228,40 @@ curl -X POST http://localhost:8080/api/allow \
   -d '{"namespace":"api","key":"user123","rule":"20rps","algorithm":"AUTO","cost":1}'
 ```
 
-**Web UI proxy endpoints** (all served from port 8080)
+## Real-Time Event Streaming
 
-| Endpoint | Method | Proxies to |
-|---|---|---|
-| `/api/service-health` | GET | debug-dashboard `/api/health` |
-| `/api/active-alerts` | GET | debug-dashboard `/api/alerts` |
-| `/api/recent-logs` | GET | debug-dashboard `/api/logs` |
-| `/api/stream-stats` | GET | streamer `/api/stats` |
-| `/api/chaos/status` | GET | debug-dashboard `/api/chaos/status` |
-| `/api/chaos/kill-ratelimiter` | POST | debug-dashboard `/api/chaos/kill-ratelimiter` |
-| `/api/chaos/kill-redis` | POST | debug-dashboard `/api/chaos/kill-redis` |
-| `/api/chaos/restore` | POST | debug-dashboard `/api/chaos/restore` |
+Every rate-limit decision is published to the Redis Stream `rl:events`.
+The **streamer** service consumes that stream with a consumer group and broadcasts events to connected WebSocket clients.
 
-## Real-time Event Streaming
+### Stream flow
 
-Every rate-limit decision is published asynchronously to a Redis Stream (`rl:events`). The `streamer` service consumes this stream using a consumer group for fault-tolerant delivery and fans events out to all connected WebSocket clients — including the web UI's Live Event Feed.
+1. `ratelimiter` appends a decision with `XADD rl:events`
+2. `streamer` reads entries with `XREADGROUP`
+3. Events are acknowledged after delivery
+4. Pending entries are reclaimed on restart
+5. Slow WebSocket consumers are evicted instead of blocking the system
 
-**How it works**
+### Event payload
 
-1. `ratelimiter` calls `XADD rl:events` after each `Allow()` (non-blocking, fire-and-forget)
-2. `streamer` runs `XREADGROUP` with a 1-second block, ACKs each entry after delivery
-3. On restart, `streamer` reclaims pending entries idle > 30 seconds via `XCLAIM`
-4. Each WebSocket client gets a 256-event buffer; slow consumers are evicted rather than blocking the fan-out
-
-The standalone event dashboard at http://localhost:8888 supports filtering by namespace, key, algorithm, and result. The web UI connects to the same WebSocket endpoint directly from the browser.
-
-**Event payload fields**
-
-| Field | Description |
+| Field | Meaning |
 |---|---|
-| `ts` | Unix millisecond timestamp |
+| `ts` | Unix timestamp in milliseconds |
 | `ns` | Namespace |
 | `key` | Rate-limit key |
-| `algo` | `tb` (token bucket) or `sw` (sliding window) |
-| `allowed` | `true` / `false` |
-| `remaining` | Tokens/slots remaining |
+| `algo` | `tb` or `sw` |
+| `allowed` | `true` or `false` |
+| `remaining` | Remaining tokens or slots |
 | `retry_ms` | Retry-after in milliseconds |
 | `latency_us` | End-to-end latency in microseconds |
-| `instance` | Hostname of the ratelimiter replica |
+| `instance` | Rate limiter replica hostname |
 
 ## Observability
 
-### Metrics — Prometheus + Grafana
+This project is built to be inspectable while it is running.
 
-Grafana is fully auto-provisioned: data sources (Prometheus, Loki, Tempo, AlertManager) and the Rate Limiter Overview dashboard are loaded at startup — no manual setup needed.
+### Metrics
 
-- **Grafana**: http://localhost:3000 — login `admin` / `admin`
-- **Prometheus**: http://localhost:9091
-
-Useful queries:
+Prometheus scrapes the services, and Grafana visualizes request rate, allow/deny split, and latency.
 
 ```promql
 # Request rate
@@ -250,166 +272,145 @@ sum by (allowed) (rate(ratelimiter_requests_total[1m]))
 
 # p95 latency
 histogram_quantile(0.95, sum by (le) (rate(ratelimiter_allow_latency_seconds_bucket[5m])))
-
-# Per-instance request rate
-sum by (instance) (rate(ratelimiter_requests_total[1m]))
 ```
 
-### Logs — Loki + Promtail
+### Logs
 
-All Go services emit structured JSON logs (zerolog). Promtail discovers Docker containers via the Docker socket and ships logs to Loki, parsing fields like `level`, `trace_id`, `namespace`, and `algo` as labels.
-
-Query logs in Grafana using LogQL:
+Go services emit structured JSON logs with `zerolog`.
+Promtail collects container logs and ships them to Loki for querying.
 
 ```logql
 {service="ratelimiter"} | json | allowed="false"
 {service="webui"} | json | latency_us > 1000
 ```
 
-### Distributed Tracing — Tempo
+### Tracing
 
-Both `ratelimiter` and `webui` export OTLP spans to Tempo. The gRPC stats handler (`otelgrpc`) propagates trace context automatically so the full request path — HTTP → gRPC → Redis — appears as a single trace.
+`ratelimiter` and `webui` export OTLP spans to Tempo, making it possible to inspect the request path from HTTP to gRPC to Redis.
 
-Traces are viewable in Grafana under **Explore → Tempo**. The Grafana provisioning includes:
-- trace-to-logs correlation (click a span → jump to matching Loki logs)
-- trace-to-metrics correlation (click a span → jump to Prometheus)
+### Alerts
 
-### Alerts — AlertManager
+Alert rules are defined in [`deploy/prometheus/alerts.yml`](deploy/prometheus/alerts.yml).
+Examples include:
 
-Pre-configured alert rules in [`deploy/prometheus/alerts.yml`](deploy/prometheus/alerts.yml):
+- High deny rate
+- High p99 latency
+- Missing rate limiter instances
+- Request rate spikes
 
-| Alert | Condition | Severity |
-|---|---|---|
-| `HighDenyRate` | >50% requests denied for 30s | warning |
-| `HighLatencyP99` | p99 latency >100ms for 1m | warning |
-| `RateLimiterInstanceDown` | Any instance unreachable for 30s | critical |
-| `NoRateLimiterInstances` | Zero instances up for 10s | critical |
-| `RequestRateSpike` | >5000 req/sec | warning |
+## Code Structure
 
-AlertManager routes to the debug dashboard webhook receiver. Firing alerts appear in the web UI's Active Alerts panel in real time.
-
-## Architecture
-
-```
-Browser → http://localhost:8080 (Web UI)
-  │
-  │  POST /api/allow ──────────→ Envoy (:50051) ──→ Rate Limiter × N ──→ Redis Cluster
-  │                                                        │
-  │                                                  XADD rl:events
-  │                                                        │
-  │  WS ws://localhost:8888 ←── Streamer ←── XREADGROUP ──┘
-  │  (Live Event Feed panel)
-  │
-  │  GET /api/service-health ──→ [webui proxy] ──→ debug-dashboard:4000/api/health
-  │  GET /api/active-alerts  ──→ [webui proxy] ──→ debug-dashboard:4000/api/alerts
-  │  GET /api/recent-logs    ──→ [webui proxy] ──→ debug-dashboard:4000/api/logs
-  │  POST /api/chaos/*       ──→ [webui proxy] ──→ debug-dashboard:4000/api/chaos/*
-  │                                                        │
-  │                                               Docker socket (chaos)
-  │
-  └── GET /api/observability ──→ Prometheus (:9091)
-
-Grafana (:3000)
-  ← Prometheus (:9091) ← rate limiter /metrics
-  ← Loki (:3100)       ← Promtail ← Docker logs
-  ← Tempo (:3200)      ← OTLP from ratelimiter + webui
-  ← AlertManager (:9093)
+```text
+cmd/
+  ratelimiter/        Core gRPC service
+  webui/              Main HTTP server and UI
+  streamer/           Redis Streams to WebSocket fan-out
+services/
+  debug-dashboard/    Health, logs, alerts, chaos proxy
+internal/
+  limiter/            Rule parsing, Redis logic, Lua scripts
+proto/
+  ratelimit.proto     gRPC contract
+deploy/
+  prometheus/         Metrics and alert rules
 ```
 
-## Code Overview
+## Core Services
 
 ### `cmd/ratelimiter`
 
-Core gRPC service. Each `Allow()` call:
-1. Parses and validates the rule string
-2. Executes the appropriate Lua script atomically on Redis
-3. Records Prometheus counter + histogram
-4. Emits a zerolog structured log line
-5. Publishes a `StreamEvent` to Redis Streams asynchronously
+The main gRPC service. Each `Allow()` call:
+
+1. Parses the rule
+2. Selects the algorithm
+3. Executes the Redis Lua script atomically
+4. Records metrics
+5. Emits structured logs
+6. Publishes an event to Redis Streams
 
 ### `cmd/webui`
 
-HTTP server and all-in-one browser UI. Backend endpoints:
+The main user-facing service. It provides:
 
-| Endpoint | Description |
-|---|---|
-| `GET /` | Embedded single-page UI |
-| `POST /api/allow` | JSON → gRPC proxy to rate limiter via Envoy |
-| `GET /api/observability` | Aggregated Prometheus queries for the charts panel |
-| `GET /api/service-health` | Proxies debug-dashboard health check |
-| `GET /api/active-alerts` | Proxies AlertManager alerts via debug-dashboard |
-| `GET /api/recent-logs` | Proxies Loki log query via debug-dashboard |
-| `GET /api/stream-stats` | Proxies streamer stats |
-| `GET /api/chaos/status` | Proxies container status via debug-dashboard |
-| `POST /api/chaos/*` | Proxies chaos actions via debug-dashboard |
+- the single-page UI
+- a JSON-to-gRPC proxy for `Allow`
+- observability queries
+- proxy endpoints for health, alerts, logs, and chaos controls
 
 ### `cmd/streamer`
 
-Redis Streams → WebSocket fan-out service. Provides:
-- `GET /` — standalone event stream dashboard (dark-theme table with filters)
-- `GET /ws/events` — WebSocket endpoint; clients receive every `rl:events` entry in real time
-- `GET /api/stats` — connected clients, buffer usage
-
-Consumer group `streamer` with pending-entry reclaim on restart for exactly-once delivery guarantees.
+Consumes `rl:events` and pushes decisions to WebSocket clients in real time.
 
 ### `services/debug-dashboard`
 
-Node.js + Express service. Backs the web UI's proxy endpoints and AlertManager webhook:
-- `GET /api/health` — aggregated health from Prometheus, AlertManager, Loki
-- `GET /api/metrics/summary` — instant Prometheus query results
-- `GET /api/alerts` — proxies AlertManager `/api/v2/alerts`
-- `GET /api/logs` — Loki LogQL query with JSON field parsing
-- `POST /api/alertmanager/webhook` — receives alert notifications; fans out to WS clients
-- `POST /api/chaos/kill-ratelimiter` — stops a random ratelimiter container via Docker socket
-- `POST /api/chaos/kill-redis` — stops a random Redis node
-- `POST /api/chaos/restore` — starts all exited compose containers
-- `GET /api/chaos/status` — lists container states
-- `WS /ws/alerts` — pushes current alerts on connect, then streams metrics every 3 seconds
+A small Node.js service that handles:
 
-### `internal/limiter`
-
-- **`limiter.go`** — `Limiter` struct; `TokenBucket()` and `SlidingWindow()` load and execute Lua scripts
-- **`rules.go`** — `ParseRule()` converts `"20rps"` and `"5/10s"` into a `ParsedRule` struct
-- **`token_bucket.lua`** — atomic refill-and-consume via `HGETALL` / `HSET`
-- **`sliding_window.lua`** — atomic sliding window via sorted sets (`ZADD` / `ZREMRANGEBYSCORE` / `ZCARD`)
-- **`redis_client.go`** — Redis Cluster client initialization from comma-separated address list
+- aggregated health checks
+- AlertManager proxying
+- Loki log queries
+- Docker-based chaos actions
+- alert fan-out over WebSocket
 
 ## Configuration
 
-All services are configured via environment variables. Key variables:
+Everything is configured with environment variables.
+Some of the most important ones are:
 
-| Service | Variable | Default | Description |
-|---|---|---|---|
-| ratelimiter | `REDIS_ADDRS` | `redis-1:7001,...` | Comma-separated Redis Cluster nodes |
-| ratelimiter | `GRPC_ADDR` | `0.0.0.0:50051` | gRPC listen address |
-| ratelimiter | `METRICS_ADDR` | `0.0.0.0:2112` | Prometheus metrics endpoint |
-| ratelimiter | `OTEL_EXPORTER_OTLP_ENDPOINT` | _(unset)_ | Tempo OTLP endpoint; omit to disable tracing |
-| webui | `GRPC_TARGET` | `envoy:50051` | gRPC upstream (Envoy) |
-| webui | `HTTP_ADDR` | `0.0.0.0:8080` | HTTP listen address |
-| webui | `PROMETHEUS_URL` | `http://prometheus:9090` | Prometheus base URL for observability queries |
-| webui | `DEBUG_DASHBOARD_URL` | `http://debug-dashboard:4000` | Debug dashboard base URL for proxy endpoints |
-| webui | `STREAMER_URL` | `http://streamer:8888` | Streamer base URL for stats proxy |
-| streamer | `REDIS_ADDRS` | `redis-1:7001,...` | Comma-separated Redis Cluster nodes |
-| streamer | `HTTP_ADDR` | `0.0.0.0:8888` | HTTP + WebSocket listen address |
-| debug-dashboard | `PROMETHEUS_URL` | `http://prometheus:9090` | Prometheus base URL |
-| debug-dashboard | `ALERTMANAGER_URL` | `http://alertmanager:9093` | AlertManager base URL |
-| debug-dashboard | `LOKI_URL` | `http://loki:3100` | Loki base URL |
+| Service | Variable | Default |
+|---|---|---|
+| `ratelimiter` | `REDIS_ADDRS` | `redis-1:7001,...` |
+| `ratelimiter` | `GRPC_ADDR` | `0.0.0.0:50051` |
+| `ratelimiter` | `METRICS_ADDR` | `0.0.0.0:2112` |
+| `webui` | `GRPC_TARGET` | `envoy:50051` |
+| `webui` | `HTTP_ADDR` | `0.0.0.0:8080` |
+| `webui` | `PROMETHEUS_URL` | `http://prometheus:9090` |
+| `webui` | `DEBUG_DASHBOARD_URL` | `http://debug-dashboard:4000` |
+| `streamer` | `HTTP_ADDR` | `0.0.0.0:8888` |
+| `debug-dashboard` | `LOKI_URL` | `http://loki:3100` |
 
-Host ports can all be overridden via `docker compose` environment variables:
+Host ports can be overridden at startup:
 
 ```bash
 WEBUI_PORT=8081 GRAFANA_PORT=3001 PROMETHEUS_PORT=9092 docker compose up -d --build
 ```
 
+## Chaos Testing
+
+The project includes built-in failure testing so you can see how the system responds under disruption.
+
+Available actions:
+
+- kill a random rate limiter replica
+- kill a random Redis node
+- restore all exited containers
+
+This makes it easy to demonstrate resilience, visibility, and failure recovery from the browser.
+
 ## Troubleshooting
 
-- **Port conflict** — override the host port with the corresponding `*_PORT` variable (see table above).
-- **Redis cluster not forming** — the `redis-cluster-init` container retries until all six nodes respond to `PING`. If it exits with an error, check `docker compose logs redis-cluster-init`.
-- **Charts look empty right after startup** — Prometheus scrapes every 5 seconds; wait a moment or run `generate_traffic.sh` to produce data.
-- **Live Event Feed shows "Unavailable"** — the browser connects directly to the streamer WebSocket on port 8888. Ensure that port is reachable from your browser (not blocked by a firewall or remapped).
-- **Service Health shows all red** — the debug-dashboard may still be starting. Check `docker compose logs debug-dashboard`. Health refreshes automatically every 5 seconds.
-- **Recent Logs show nothing** — Loki and Promtail need a few seconds to ingest logs after startup. Generate some traffic with `generate_traffic.sh` and wait ~10 seconds.
-- **Chaos buttons return errors** — Docker socket must be mounted into the debug-dashboard container. Check that `/var/run/docker.sock` exists on the host and that the compose file mounts it.
-- **Tempo traces missing** — ensure `OTEL_EXPORTER_OTLP_ENDPOINT=tempo:4318` is set. The Go services log a warning if the variable is unset.
-- **Grafana datasource errors** — Grafana provisions sources at boot. If Prometheus or Loki aren't ready yet, reload the datasource from **Connections > Data Sources**.
-- **Slow consumer eviction** — if the event stream client buffer (256 events) fills up, the WebSocket connection is closed. Reconnect automatically happens after 2 seconds.
+<details>
+<summary><strong>Common issues</strong></summary>
+
+- **Port conflict**: override the host port with the relevant `*_PORT` variable.
+- **Redis cluster not forming**: check `docker compose logs redis-cluster-init`.
+- **Empty charts after startup**: wait a few seconds or run `generate_traffic.sh`.
+- **Live event feed unavailable**: make sure port `8888` is reachable from the browser.
+- **All services show red**: the debug dashboard may still be starting.
+- **No logs in the UI**: Loki and Promtail may need a few seconds to ingest logs.
+- **Chaos buttons fail**: confirm `/var/run/docker.sock` is mounted into the debug dashboard container.
+- **Traces missing**: ensure `OTEL_EXPORTER_OTLP_ENDPOINT=tempo:4318` is set.
+
+</details>
+
+## Why this is a strong systems project
+
+This project demonstrates more than a rate limiting algorithm.
+It shows how to build, operate, observe, and stress-test a distributed service end to end.
+
+That includes:
+
+- concurrency-safe shared state
+- horizontal scaling behind a proxy
+- event-driven real-time updates
+- observability across metrics, logs, traces, and alerts
+- resilience testing through controlled failures
