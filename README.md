@@ -402,15 +402,3 @@ This makes it easy to demonstrate resilience, visibility, and failure recovery f
 
 </details>
 
-## Why this is a strong systems project
-
-This project demonstrates more than a rate limiting algorithm.
-It shows how to build, operate, observe, and stress-test a distributed service end to end.
-
-That includes:
-
-- concurrency-safe shared state
-- horizontal scaling behind a proxy
-- event-driven real-time updates
-- observability across metrics, logs, traces, and alerts
-- resilience testing through controlled failures
