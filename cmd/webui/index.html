@@ -4,1381 +4,497 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Distributed Rate Limiter</title>
-  <style>
-    :root {
-      --bg: #f6f4ef;
-      --surface: #ffffff;
-      --surface-soft: #f1ede5;
-      --surface-accent: #eef7f4;
-      --text: #1f2933;
-      --muted: #5f6c76;
-      --line: #d8e0e6;
-      --accent: #1f6f5f;
-      --accent-strong: #155144;
-      --accent-soft: rgba(31, 111, 95, 0.12);
-      --blue: #356fd8;
-      --amber: #a66214;
-      --ok-bg: #e7f6ef;
-      --ok-text: #166245;
-      --warn-bg: #fff1e4;
-      --warn-text: #9a4d12;
-      --danger-bg: #fdecec;
-      --danger-text: #a62b2b;
-      --shadow: 0 18px 42px rgba(31, 41, 51, 0.08);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at top right, rgba(31, 111, 95, 0.06), transparent 30%),
-        linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
-    }
-
-    main {
-      width: min(1120px, calc(100% - 24px));
-      margin: 28px auto 44px;
-      display: grid;
-      gap: 20px;
-    }
-
-    .hero,
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-    }
-
-    .hero {
-      padding: 28px;
-      display: grid;
-      gap: 18px;
-    }
-
-    .card {
-      padding: 22px;
-    }
-
-    .eyebrow {
-      display: inline-block;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: var(--surface-soft);
-      color: var(--muted);
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    h1,
-    h2,
-    h3,
-    h4 {
-      margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
-      letter-spacing: -0.03em;
-    }
-
-    h1 {
-      font-size: clamp(2rem, 4.8vw, 3.3rem);
-      line-height: 1.02;
-    }
-
-    p,
-    .section-copy,
-    .field-note,
-    .preview,
-    .subtle,
-    .response-copy,
-    .metric-subtle,
-    .table-note,
-    .chart-help {
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    .hero p {
-      max-width: 70ch;
-      margin: 0;
-    }
-
-    .architecture {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .arch-step {
-      padding: 14px;
-      border-radius: 16px;
-      background: var(--surface-soft);
-      border: 1px solid var(--line);
-      position: relative;
-    }
-
-    .arch-step strong {
-      display: block;
-      margin-bottom: 5px;
-    }
-
-    .arch-step::after {
-      content: "→";
-      position: absolute;
-      right: -10px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--muted);
-      font-size: 1.1rem;
-    }
-
-    .arch-step:last-child::after {
-      display: none;
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
-      gap: 20px;
-    }
-
-    .stack {
-      display: grid;
-      gap: 20px;
-    }
-
-    .section-head {
-      display: grid;
-      gap: 8px;
-      margin-bottom: 18px;
-    }
-
-    .scenario-grid,
-    .link-row,
-    .metric-grid,
-    .chart-grid,
-    .copy-grid,
-    .sim-grid,
-    .info-grid {
-      display: grid;
-      gap: 12px;
-    }
-
-    .scenario-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-bottom: 18px;
-    }
-
-    .info-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .scenario,
-    .metric-card,
-    .chart-card,
-    .mini-card,
-    .history-card,
-    .sim-card,
-    .disclosure {
-      padding: 14px;
-      border-radius: 16px;
-      border: 1px solid var(--line);
-      background: var(--surface-soft);
-    }
-
-    .scenario {
-      cursor: pointer;
-      text-align: left;
-      font: inherit;
-    }
-
-    .scenario.active {
-      border-color: rgba(31, 111, 95, 0.36);
-      background: var(--surface-accent);
-      box-shadow: inset 0 0 0 1px rgba(31, 111, 95, 0.12);
-    }
-
-    .scenario strong,
-    .metric-card strong,
-    .mini-card strong,
-    .history-card strong,
-    .sim-card strong {
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .scenario small {
-      color: var(--muted);
-      display: block;
-      margin-top: 6px;
-      line-height: 1.5;
-    }
-
-    .disclosure {
-      padding: 0;
-      overflow: hidden;
-    }
-
-    .disclosure summary {
-      list-style: none;
-      cursor: pointer;
-      padding: 16px 18px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      font-weight: 700;
-    }
-
-    .disclosure summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .disclosure summary span {
-      color: var(--muted);
-      font-weight: 400;
-      font-size: 0.95rem;
-    }
-
-    .disclosure summary::after {
-      content: "+";
-      color: var(--accent);
-      font-size: 1.2rem;
-      line-height: 1;
-      flex: none;
-    }
-
-    .disclosure[open] summary::after {
-      content: "-";
-    }
-
-    .disclosure-body {
-      padding: 0 18px 18px;
-      border-top: 1px solid var(--line);
-    }
-
-    form {
-      display: grid;
-      gap: 18px;
-    }
-
-    .grid,
-    .builder-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    .field {
-      display: grid;
-      gap: 7px;
-    }
-
-    .field label {
-      font-weight: 700;
-    }
-
-    input,
-    select,
-    button,
-    textarea {
-      font: inherit;
-    }
-
-    input,
-    select,
-    textarea {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 13px 14px;
-      background: #fff;
-      color: var(--text);
-    }
-
-    input:focus,
-    select:focus,
-    textarea:focus {
-      outline: none;
-      border-color: #7fb5a9;
-      box-shadow: 0 0 0 4px rgba(31, 111, 95, 0.12);
-    }
-
-    code,
-    pre,
-    .history-table,
-    .history-table th,
-    .history-table td {
-      font-family: "SFMono-Regular", Menlo, Monaco, monospace;
-    }
-
-    .field-note code,
-    .item code,
-    .copy-box code,
-    .link-chip code,
-    .metric-card code,
-    .preview code,
-    .response-copy code {
-      padding: 0.12em 0.35em;
-      border-radius: 6px;
-      background: rgba(31, 41, 51, 0.06);
-    }
-
-    .builder-card {
-      padding: 16px;
-      border-radius: 18px;
-      background: var(--surface-accent);
-      border: 1px solid rgba(31, 111, 95, 0.18);
-      display: grid;
-      gap: 14px;
-    }
-
-    .builder-note {
-      font-size: 0.94rem;
-    }
-
-    .validation {
-      display: none;
-      padding: 14px;
-      border-radius: 16px;
-      background: var(--danger-bg);
-      border: 1px solid rgba(166, 43, 43, 0.16);
-      color: var(--danger-text);
-    }
-
-    .validation.visible {
-      display: block;
-    }
-
-    .validation ul {
-      margin: 8px 0 0 18px;
-      padding: 0;
-    }
-
-    .actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-
-    .primary,
-    .secondary {
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 16px;
-      cursor: pointer;
-      font-weight: 700;
-    }
-
-    .primary {
-      background: var(--accent);
-      color: #fff;
-    }
-
-    .primary:hover {
-      background: var(--accent-strong);
-    }
-
-    .secondary {
-      background: var(--surface-soft);
-      color: var(--text);
-      border: 1px solid var(--line);
-    }
-
-    .secondary:hover {
-      background: #ebe5db;
-    }
-
-    .status {
-      min-height: 24px;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    .list {
-      display: grid;
-      gap: 12px;
-      margin-top: 16px;
-    }
-
-    .item {
-      padding: 14px;
-      border-radius: 14px;
-      background: var(--surface-soft);
-      border: 1px solid var(--line);
-    }
-
-    .item strong {
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 9px 12px;
-      border-radius: 999px;
-      background: var(--surface-soft);
-      color: var(--text);
-      font-weight: 700;
-    }
-
-    .badge.allowed {
-      background: var(--ok-bg);
-      color: var(--ok-text);
-    }
-
-    .badge.denied {
-      background: var(--warn-bg);
-      color: var(--warn-text);
-    }
-
-    pre,
-    .copy-box {
-      margin: 0;
-      padding: 16px;
-      border-radius: 16px;
-      background: #1f2933;
-      color: #f4f7f9;
-      overflow: auto;
-      line-height: 1.55;
-      font-size: 0.94rem;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .copy-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: 16px;
-    }
-
-    .copy-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .response-summary {
-      margin-top: 14px;
-      padding: 14px;
-      border-radius: 16px;
-      background: var(--surface-soft);
-      border: 1px solid var(--line);
-    }
-
-    .response-detail,
-    .redis-key {
-      margin-top: 14px;
-    }
-
-    .summary-card {
-      background:
-        radial-gradient(circle at top right, rgba(31, 111, 95, 0.12), transparent 32%),
-        linear-gradient(180deg, #fcfbf8 0%, #f4efe6 100%);
-      border-color: rgba(31, 111, 95, 0.16);
-    }
-
-    .summary-shell {
-      display: grid;
-      gap: 14px;
-      padding: 16px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid rgba(31, 111, 95, 0.12);
-    }
-
-    .summary-kicker,
-    .sim-kicker {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      width: fit-content;
-      font-size: 0.8rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .summary-kicker {
-      background: rgba(31, 111, 95, 0.12);
-      color: var(--accent-strong);
-    }
-
-    .summary-preview {
-      padding: 16px;
-      border-radius: 16px;
-      background: #fff;
-      border: 1px solid rgba(31, 111, 95, 0.12);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-    }
-
-    .summary-preview .preview {
-      color: var(--text);
-    }
-
-    .summary-meta {
-      display: grid;
-      gap: 10px;
-    }
-
-    .history-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 16px;
-      font-size: 0.88rem;
-    }
-
-    .history-table th,
-    .history-table td {
-      border-bottom: 1px solid var(--line);
-      padding: 10px 8px;
-      text-align: left;
-      vertical-align: top;
-    }
-
-    .history-table th {
-      color: var(--muted);
-      font-weight: 700;
-    }
-
-    .history-empty {
-      margin-top: 12px;
-      color: var(--muted);
-    }
-
-    .link-row {
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    }
-
-    .link-chip {
-      display: block;
-      text-decoration: none;
-      color: var(--text);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px;
-      background: var(--surface-soft);
-    }
-
-    .link-chip strong {
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .metric-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      margin-top: 16px;
-    }
-
-    .metric-value {
-      display: block;
-      margin-top: 8px;
-      font-size: 1.55rem;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-    }
-
-    .metric-subtle {
-      display: block;
-      margin-top: 4px;
-      font-size: 0.9rem;
-    }
-
-    .chart-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: 16px;
-    }
-
-    .chart-card.wide {
-      grid-column: span 2;
-    }
-
-    .chart-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .chart-card h3 {
-      font-size: 1.05rem;
-      margin-bottom: 2px;
-    }
-
-    .chart-legend {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      color: var(--muted);
-      font-size: 0.88rem;
-    }
-
-    .legend-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .legend-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      display: inline-block;
-    }
-
-    .legend-dot.accent {
-      background: var(--accent);
-    }
-
-    .legend-dot.blue {
-      background: var(--blue);
-    }
-
-    .legend-dot.amber {
-      background: var(--amber);
-    }
-
-    .chart-frame {
-      position: relative;
-      width: 100%;
-      height: 290px;
-      border-radius: 12px;
-      background: #fbfcfd;
-      border: 1px solid var(--line);
-      overflow: hidden;
-      margin-top: 12px;
-    }
-
-    .chart-frame svg {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-
-    .chart-frame.history-chart {
-      height: 260px;
-    }
-
-    .chart-frame.large-chart {
-      height: 340px;
-    }
-
-    .chart-empty {
-      display: grid;
-      place-items: center;
-      width: 100%;
-      height: 100%;
-      color: var(--muted);
-      font-size: 0.92rem;
-      padding: 16px;
-      text-align: center;
-    }
-
-    .chart-meta {
-      margin-top: 8px;
-      font-size: 0.9rem;
-      color: var(--muted);
-    }
-
-    .chart-stats {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .chart-stat {
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: #faf8f3;
-      border: 1px solid var(--line);
-    }
-
-    .chart-stat strong {
-      display: block;
-      font-size: 0.78rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 4px;
-    }
-
-    .chart-help {
-      margin-top: 8px;
-      font-size: 0.9rem;
-    }
-
-    .chart-tooltip {
-      position: absolute;
-      display: none;
-      min-width: 160px;
-      max-width: min(240px, calc(100% - 16px));
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(31, 41, 51, 0.96);
-      color: #f4f7f9;
-      box-shadow: 0 12px 24px rgba(31, 41, 51, 0.2);
-      pointer-events: none;
-      z-index: 2;
-      font-size: 0.86rem;
-      line-height: 1.45;
-    }
-
-    .chart-tooltip.visible {
-      display: block;
-    }
-
-    .chart-tooltip strong {
-      display: block;
-      margin-bottom: 6px;
-    }
-
-    .tooltip-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .tooltip-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .tooltip-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      display: inline-block;
-      flex: none;
-    }
-
-    .sim-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: 8px;
-    }
-
-    .simulator-card {
-      background:
-        linear-gradient(180deg, #1d2c38 0%, #223746 100%);
-      border-color: rgba(12, 19, 26, 0.28);
-      color: #eef4f7;
-    }
-
-    .simulator-card .section-copy,
-    .simulator-card .subtle,
-    .simulator-card .timeline-note {
-      color: rgba(238, 244, 247, 0.76);
-    }
-
-    .simulator-shell {
-      display: grid;
-      gap: 14px;
-    }
-
-    .sim-kicker {
-      background: rgba(255, 255, 255, 0.12);
-      color: #dfeaed;
-    }
-
-    .sim-card {
-      display: grid;
-      gap: 6px;
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.12);
-      color: #f5f8fa;
-    }
-
-    .sim-card .subtle {
-      font-size: 0.92rem;
-    }
-
-    .sim-card code {
-      background: rgba(255, 255, 255, 0.12);
-      color: #fff;
-    }
-
-    .timeline-note {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    .muted-pill {
-      display: inline-block;
-      margin-top: 10px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: var(--surface-soft);
-      color: var(--muted);
-      font-size: 0.84rem;
-    }
-
-    @media (max-width: 980px) {
-      .architecture,
-      .metric-grid,
-      .chart-grid,
-      .link-row,
-      .copy-grid,
-      .scenario-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 860px) {
-      .layout,
-      .grid,
-      .builder-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 720px) {
-      main {
-        width: min(100% - 16px, 1120px);
-        margin-top: 16px;
-      }
-
-      .hero,
-      .card {
-        padding: 18px;
-      }
-
-      .architecture,
-      .metric-grid,
-      .chart-grid,
-      .link-row,
-      .copy-grid,
-      .scenario-grid,
-      .sim-grid,
-      .info-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .chart-card.wide {
-        grid-column: auto;
-      }
-
-      .chart-stats {
-        grid-template-columns: 1fr;
-      }
-
-      .arch-step::after {
-        display: none;
-      }
-    }
-
-    /* ── Service Health ── */
-    .health-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 14px;
-    }
-    .health-item {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      padding: 8px 14px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: var(--surface-soft);
-      font-size: 13px;
-    }
-    .health-dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .health-dot.up   { background: #27a76b; box-shadow: 0 0 0 3px rgba(39,167,107,.18); }
-    .health-dot.down { background: #d94040; box-shadow: 0 0 0 3px rgba(217,64,64,.18); }
-    .health-dot.unknown { background: var(--muted); }
-    .health-label { font-weight: 600; color: var(--text); }
-    .health-extra { color: var(--muted); font-size: 11px; }
-    .health-error { color: var(--muted); font-size: 13px; padding: 6px 0; }
-
-    /* ── WebSocket status badge ── */
-    .ws-badge {
-      display: inline-block;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: .03em;
-    }
-    .ws-badge.connecting  { background: var(--surface-soft); color: var(--muted); }
-    .ws-badge.connected   { background: var(--ok-bg);       color: var(--ok-text); }
-    .ws-badge.disconnected{ background: var(--danger-bg);   color: var(--danger-text); }
-
-    /* ── Event table ── */
-    .event-controls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 14px 0 8px;
-      flex-wrap: wrap;
-    }
-    .event-table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      max-height: 320px;
-      overflow-y: auto;
-    }
-    .event-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12.5px;
-    }
-    .event-table thead th {
-      position: sticky;
-      top: 0;
-      background: var(--surface-soft);
-      padding: 8px 12px;
-      text-align: left;
-      font-weight: 600;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--muted);
-      border-bottom: 1px solid var(--line);
-      white-space: nowrap;
-    }
-    .event-table tbody tr {
-      border-bottom: 1px solid var(--line);
-      transition: background .1s;
-    }
-    .event-table tbody tr:last-child { border-bottom: none; }
-    .event-table tbody tr:hover { background: var(--surface-soft); }
-    .event-table td {
-      padding: 6px 12px;
-      white-space: nowrap;
-      color: var(--text);
-    }
-    .event-empty {
-      text-align: center;
-      color: var(--muted);
-      padding: 28px;
-      font-size: 13px;
-    }
-    .event-counter {
-      font-size: 12px;
-      color: var(--muted);
-      margin-left: auto;
-    }
-
-    /* ── Pills ── */
-    .pill {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: .03em;
-    }
-    .pill-tb      { background: #e8f0fb; color: var(--blue); }
-    .pill-sw      { background: var(--surface-soft); color: var(--muted); }
-    .pill-allowed { background: var(--ok-bg);     color: var(--ok-text); }
-    .pill-denied  { background: var(--danger-bg); color: var(--danger-text); }
-
-    /* ── Alerts ── */
-    .alerts-list { display: grid; gap: 8px; margin-top: 14px; }
-    .alert-item {
-      padding: 11px 14px;
-      border-radius: 10px;
-      border-left: 4px solid var(--line);
-      background: var(--surface-soft);
-    }
-    .alert-item.sev-critical { border-color: #d94040; background: var(--danger-bg); }
-    .alert-item.sev-warning  { border-color: var(--amber); background: var(--warn-bg); }
-    .alert-item.sev-info     { border-color: var(--blue);  background: #edf2fb; }
-    .alert-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-    }
-    .alert-name  { font-weight: 700; font-size: 13px; }
-    .alert-sev   { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .06em; }
-    .sev-critical .alert-sev { background: var(--danger-text); color: #fff; }
-    .sev-warning  .alert-sev { background: var(--amber);       color: #fff; }
-    .sev-info     .alert-sev { background: var(--blue);        color: #fff; }
-    .alert-summary { font-size: 12px; color: var(--text); }
-    .alert-since   { font-size: 11px; color: var(--muted); margin-top: 3px; }
-    .alerts-empty  { color: var(--muted); font-size: 13px; padding: 12px 0; }
-
-    /* ── Logs ── */
-    .logs-wrap {
-      margin-top: 14px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      max-height: 280px;
-      overflow-y: auto;
-      background: #1a1f26;
-      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
-      font-size: 11.5px;
-    }
-    .log-line {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      padding: 4px 12px;
-      border-bottom: 1px solid rgba(255,255,255,.05);
-    }
-    .log-line:last-child { border-bottom: none; }
-    .log-time   { color: #5a7a9a; flex-shrink: 0; }
-    .log-level  {
-      flex-shrink: 0;
-      width: 38px;
-      font-weight: 700;
-      font-size: 10px;
-      text-align: center;
-    }
-    .log-level-info  { color: #4ec9b0; }
-    .log-level-warn  { color: #ddb74e; }
-    .log-level-error { color: #f44747; }
-    .log-msg    { color: #d4d4d4; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .log-detail { color: #6a9955; flex-shrink: 0; font-size: 10.5px; }
-    .logs-empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
-    .log-filter-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 14px;
-      flex-wrap: wrap;
-    }
-    .log-filter-row select {
-      padding: 5px 10px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--surface);
-      font-size: 12px;
-      color: var(--text);
-    }
-
-    /* ── Chaos Engineering ── */
-    .chaos-controls {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin: 14px 0;
-    }
-    .chaos-btn {
-      padding: 9px 18px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: var(--surface-soft);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background .15s, opacity .15s;
-    }
-    .chaos-btn:hover:not(:disabled) { filter: brightness(.96); }
-    .chaos-btn:disabled { opacity: .5; cursor: not-allowed; }
-    .chaos-btn.danger  { background: var(--danger-bg);  color: var(--danger-text); border-color: rgba(166,43,43,.25); }
-    .chaos-btn.warn    { background: var(--warn-bg);    color: var(--warn-text);   border-color: rgba(166,98,20,.25); }
-    .chaos-btn.restore { background: var(--ok-bg);      color: var(--ok-text);     border-color: rgba(22,98,69,.25); }
-    .chaos-result {
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 8px;
-      min-height: 18px;
-    }
-    .chaos-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12.5px;
-    }
-    .chaos-table th {
-      background: var(--surface-soft);
-      padding: 7px 12px;
-      text-align: left;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      color: var(--muted);
-      border-bottom: 1px solid var(--line);
-    }
-    .chaos-table td {
-      padding: 6px 12px;
-      border-bottom: 1px solid var(--line);
-      font-size: 12px;
-    }
-    .chaos-table tbody tr:last-child td { border-bottom: none; }
-    .chaos-table-wrap {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      overflow: hidden;
-      max-height: 260px;
-      overflow-y: auto;
-    }
-    .chaos-unavail { color: var(--muted); font-size: 13px; padding: 8px 0; }
-
-    /* ── Two-column observability layout ── */
-    .obs-two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    @media (max-width: 768px) {
-      .obs-two-col { grid-template-columns: 1fr; }
-    }
-  </style>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
-  <main>
-    <section class="hero">
-      <div class="eyebrow">Distributed Rate Limiter</div>
-      <h1>Submit a request and review the rate-limit decision.</h1>
-      <p>
-        This interface submits requests through the HTTP gateway, forwards them through Envoy and gRPC,
-        and returns a Redis-backed rate-limit decision. Every decision is also published to a Redis Stream
-        and delivered in real time to the <a href="#" id="streamerHeroLink" target="_blank" rel="noreferrer" style="color:var(--accent)">Live Event Stream</a>.
-        The system ships structured logs to Loki, distributed traces to Tempo, and fires alerts through
-        AlertManager — all visible in the <a href="#" id="debugHeroLink" target="_blank" rel="noreferrer" style="color:var(--accent)">Debug Dashboard</a> and Grafana.
-      </p>
-      <div class="architecture" style="grid-template-columns: repeat(7, minmax(0, 1fr))">
-        <div class="arch-step">
-          <strong>1. Browser</strong>
-          Define the request and submit it from this page.
+<body class="mode-basic">
+  <main class="app-shell">
+    <aside class="app-sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
         </div>
-        <div class="arch-step">
-          <strong>2. Web UI</strong>
-          The HTTP gateway converts the request into a gRPC call.
+        <div class="sidebar-brand-copy">
+          <div class="sidebar-title">Limit Lab</div>
+          <div class="sidebar-subtitle">Control Center</div>
         </div>
-        <div class="arch-step">
-          <strong>3. Envoy</strong>
-          Forwards gRPC traffic across all rate-limiter replicas.
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Workspace navigation">
+        <a href="#overview" class="sidebar-link active">
+          <span class="sidebar-icon">G</span>
+          <span class="sidebar-link-copy">
+            <span class="sidebar-label">Guide</span>
+          </span>
+        </a>
+        <a href="#requests" class="sidebar-link">
+          <span class="sidebar-icon">R</span>
+          <span class="sidebar-link-copy">
+            <span class="sidebar-label">Requests</span>
+          </span>
+        </a>
+        <a href="#observability" class="sidebar-link" data-mode="advanced" title="Advanced-only section">
+          <span class="sidebar-icon">M</span>
+          <span class="sidebar-link-copy">
+            <span class="sidebar-label">Monitoring</span>
+            <span class="sidebar-badge">Advanced</span>
+          </span>
+        </a>
+        <a href="#events" class="sidebar-link" data-mode="advanced" title="Advanced-only section">
+          <span class="sidebar-icon">E</span>
+          <span class="sidebar-link-copy">
+            <span class="sidebar-label">Events</span>
+            <span class="sidebar-badge">Advanced</span>
+          </span>
+        </a>
+        <a href="#chaos" class="sidebar-link" data-mode="advanced" title="Advanced-only section">
+          <span class="sidebar-icon">C</span>
+          <span class="sidebar-link-copy">
+            <span class="sidebar-label">Chaos</span>
+            <span class="sidebar-badge">Advanced</span>
+          </span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-foot-label">Live stack</div>
+        <div class="sidebar-foot-copy">Prometheus, Loki, Tempo, AlertManager, Redis Streams</div>
+      </div>
+    </aside>
+
+    <div class="app-content-shell">
+    <header id="dashboardTopbar" class="topbar">
+      <div class="topbar-brand">
+        <div>
+          <div class="eyebrow">Dashboard</div>
+          <div class="topbar-title">Distributed Rate Limiter</div>
         </div>
-        <div class="arch-step">
-          <strong>4. Rate Limiter</strong>
-          Parses the rule, runs the algorithm, publishes an event.
+      </div>
+      <div class="topbar-side">
+        <div class="topbar-meta">
+          <span class="topbar-chip">Traffic control</span>
+          <span class="topbar-chip">Operator workspace</span>
+          <span class="topbar-chip topbar-chip-hot">Realtime signals</span>
         </div>
-        <div class="arch-step">
-          <strong>5. Redis</strong>
-          Stores shared counters and the <code>rl:events</code> stream.
+        <div class="topbar-mode">
+          <div class="topbar-mode-label">Workspace mode</div>
+          <div class="view-mode-toggle topbar-mode-toggle" aria-label="Workspace detail level">
+            <button id="basicModeBtn" class="mode-toggle-button active" type="button" onclick="setRequestViewMode('basic')" aria-pressed="true">Basic</button>
+            <button id="advancedModeBtn" class="mode-toggle-button" type="button" onclick="setRequestViewMode('advanced')" aria-pressed="false">Advanced</button>
+          </div>
+          <div id="topbarModeHint" class="topbar-mode-hint">Basic keeps the app focused on checks. Switch to Advanced for Monitoring, Events, and Chaos.</div>
         </div>
-        <div class="arch-step">
-          <strong>6. Streamer</strong>
-          Reads the stream and fans out to WebSocket clients.
+      </div>
+    </header>
+
+    <section id="overview" class="card guide-card" data-advanced-panel="build">
+      <div class="section-head">
+        <h2>Learn the System</h2>
+        <div class="section-copy">Start here for the quick mental model. The full guide stays below when you want deeper context.</div>
+      </div>
+      <div class="guide-overview">
+        <div class="guide-overview-lead">Use Basic to send a check and read the verdict. Move into Advanced only when you want deeper signals, events, or failure drills.</div>
+        <div class="guide-overview-grid">
+          <div class="guide-overview-card">
+            <strong>Start with one check</strong>
+            <p>Pick a starter, keep the defaults, and send a single request first.</p>
+          </div>
+          <div class="guide-overview-card">
+            <strong>Read the verdict</strong>
+            <p>Focus on allowed or denied, remaining budget, and suggested retry timing.</p>
+          </div>
+          <div class="guide-overview-card">
+            <strong>Open Advanced when needed</strong>
+            <p>Monitoring, Events, and Chaos are there when you need to inspect behavior in depth.</p>
+          </div>
         </div>
-        <div class="arch-step">
-          <strong>7. Observability</strong>
-          Prometheus · Loki · Tempo · AlertManager · Grafana.
+      </div>
+      <details id="guideDrawer" class="tool-drawer guide-drawer" data-persist-drawer="guideDrawer">
+        <summary>Open the full guide</summary>
+        <div class="tool-drawer-body guide-drawer-body">
+          <div class="guide-intro-grid">
+            <div class="guide-intro-card">
+              <strong>What this console does</strong>
+              <p>This page sends a check through the HTTP gateway, Envoy, and gRPC rate limiter, then returns a Redis-backed allow or deny decision.</p>
+            </div>
+            <div class="guide-intro-card">
+              <strong>Where the signals go</strong>
+              <p>Each decision also lands in the <a class="hero-link" href="#" id="streamerHeroLink" target="_blank" rel="noreferrer">Live Event Stream</a>, while logs, traces, alerts, and stack state flow into the <a class="hero-link" href="#" id="debugHeroLink" target="_blank" rel="noreferrer">Debug Dashboard</a> and Grafana.</p>
+            </div>
+          </div>
+          <div class="guide-grid">
+            <div class="guide-block">
+              <strong>Quick start</strong>
+              <div class="list">
+                <div class="item">Pick the starter that best matches your traffic pattern.</div>
+                <div class="item">Keep the defaults unless you want to test a different subject or limit.</div>
+                <div class="item">Run one check first, then open monitoring only if the result needs more context.</div>
+              </div>
+            </div>
+            <div class="guide-block">
+              <strong>Request path</strong>
+              <div class="list">
+                <div class="item"><strong>1. Browser</strong>Your form input becomes a check request.</div>
+                <div class="item"><strong>2. Envoy</strong>The gateway forwards the request to the rate limiter service.</div>
+                <div class="item"><strong>3. Limiter + Redis</strong>The rule is evaluated, shared state is updated, and an event is emitted.</div>
+                <div class="item"><strong>4. Signals</strong>Monitoring and debug tools show the decision in charts, logs, traces, and events.</div>
+              </div>
+            </div>
+            <div class="guide-block">
+              <strong>What the fields mean</strong>
+              <div class="list">
+                <div class="item"><strong>Traffic group <code>namespace</code></strong>Keeps unrelated traffic from sharing the same limit.</div>
+                <div class="item"><strong>Subject <code>key</code></strong>Identifies the user, client, or entity being checked.</div>
+                <div class="item"><strong>Limit <code>rule</code></strong>Defines either a refill rate or a requests-per-window threshold.</div>
+                <div class="item"><strong>Strategy <code>algorithm</code></strong>Chooses burst-friendly or strict-window behavior, while <code>AUTO</code> derives the strategy from the limit format.</div>
+                <div class="item"><strong>Cost <code>cost</code></strong>Spends multiple budget units for heavier checks.</div>
+              </div>
+            </div>
+            <div class="guide-block">
+              <strong>When to use each strategy</strong>
+              <div class="list">
+                <div class="item"><strong>Burst-friendly</strong>Smoother and more spike-tolerant for general API traffic.</div>
+                <div class="item"><strong>Strict window</strong>Firmer inside a time window for login, OTP, or abuse controls.</div>
+                <div class="item"><strong>Recovery drills</strong>Use the chaos tools only when you are intentionally testing failure handling.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="request-quickbar" aria-label="Current request summary">
+      <div class="quickbar-label">Current check</div>
+      <div class="quickbar-grid">
+        <div class="quickbar-item" data-advanced="true">
+          <span class="quickbar-key">View</span>
+          <strong id="stickyViewMode">Basic</strong>
+        </div>
+        <div class="quickbar-item">
+          <span class="quickbar-key">Scenario</span>
+          <strong id="stickyScenario">Per-user API quota</strong>
+        </div>
+        <div class="quickbar-item">
+          <span class="quickbar-key">Subject</span>
+          <strong id="stickyKey">user123</strong>
+        </div>
+        <div class="quickbar-item">
+          <span class="quickbar-key">Limit</span>
+          <strong id="stickyRule">20rps</strong>
+        </div>
+        <div class="quickbar-item" data-advanced="true">
+          <span class="quickbar-key">Run mode</span>
+          <strong id="stickyRunMode">Single request</strong>
+        </div>
+        <div class="quickbar-item" data-advanced="true">
+          <span class="quickbar-key">Interval</span>
+          <strong id="stickyInterval">On demand</strong>
+        </div>
+        <div id="stickyDecisionCard" class="quickbar-item quickbar-item-wide quickbar-decision" data-decision-tone="idle">
+          <span class="quickbar-key">Last result</span>
+          <strong id="stickyLastDecision">Awaiting check</strong>
         </div>
       </div>
     </section>
 
-    <section class="info-grid">
-      <details class="disclosure">
-        <summary>
-          What These Options Mean
-          <span>Field definitions for the request form.</span>
-        </summary>
-        <div class="disclosure-body">
-          <div class="list">
-            <div class="item">
-              <strong><code>namespace</code></strong>
-              Keeps unrelated traffic from sharing the same rate limit.
-            </div>
-            <div class="item">
-              <strong><code>key</code></strong>
-              Identifies the client or entity subject to the rate limit.
-            </div>
-            <div class="item">
-              <strong><code>rule</code></strong>
-              Defines the limit as either a refill rate or a requests-per-window threshold.
-            </div>
-            <div class="item">
-              <strong><code>algorithm</code></strong>
-              Selects token bucket or sliding window. <code>AUTO</code> derives the algorithm from the rule format.
-            </div>
-            <div class="item">
-              <strong><code>cost</code></strong>
-              Applies a multi-unit charge when a single request should consume additional budget.
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <details class="disclosure">
-        <summary>
-          Algorithm Comparison
-          <span>When to choose token bucket versus sliding window.</span>
-        </summary>
-        <div class="disclosure-body">
-          <div class="list">
-            <div class="item">
-              <strong>Token bucket</strong>
-              Smoother and burst-friendly. This is a strong choice for general API throughput control.
-            </div>
-            <div class="item">
-              <strong>Sliding window</strong>
-              Stricter and more exact within a time window. This is a strong choice for login, OTP, or abuse protection.
-            </div>
-          </div>
-        </div>
-      </details>
-    </section>
-
-    <section class="layout">
+    <section id="requests" class="layout">
       <section class="card">
         <div class="section-head">
-          <h2>Request</h2>
-          <div class="section-copy">Select a scenario, refine the rule in the builder, and submit the request.</div>
+          <h2>Run a Check</h2>
+          <div class="section-copy">Choose a starter and run one check first.</div>
         </div>
 
         <div class="scenario-grid" id="scenarioGrid">
-          <button class="scenario" type="button" data-scenario="token" onclick="applyScenario('token')">
+          <button
+            class="scenario"
+            type="button"
+            data-scenario="token"
+            title="Best when short spikes are fine as long as the long-term pace stays controlled."
+            onclick="applyScenario('token')">
             <strong>Per-user API quota</strong>
-            Steady token-bucket control for a normal API consumer.
-            <small>Recommended when short bursts should be allowed without exceeding the long-term rate.</small>
+            <span class="scenario-subtitle">Burst-friendly API traffic</span>
+            <span class="scenario-recommendation">Best default for most API testing</span>
           </button>
-          <button class="scenario" type="button" data-scenario="window" onclick="applyScenario('window')">
+          <button
+            class="scenario"
+            type="button"
+            data-scenario="window"
+            title="Best when you need a hard cap inside an exact time window."
+            onclick="applyScenario('window')">
             <strong>Login protection</strong>
-            Sliding-window enforcement for sensitive actions like authentication.
-            <small>Recommended when a strict cap is required inside an exact time window.</small>
+            <span class="scenario-subtitle">Strict-window sign-in control</span>
+            <span class="scenario-recommendation">Use when retries must stay inside a hard cap</span>
           </button>
-          <button class="scenario" type="button" data-scenario="heavy" onclick="applyScenario('heavy')">
+          <button
+            class="scenario"
+            type="button"
+            data-scenario="heavy"
+            title="Best when one expensive operation should count more than a normal request."
+            onclick="applyScenario('heavy')">
             <strong>Heavy report generation</strong>
-            Multi-unit request costing for expensive jobs.
-            <small>Recommended when one operation should consume more capacity than a standard request.</small>
+            <span class="scenario-subtitle">Weighted requests spend more budget</span>
+            <span class="scenario-recommendation">Use when one request should cost multiple units</span>
           </button>
         </div>
 
-        <div class="builder-card">
-          <div>
-            <h3>Rule Builder</h3>
-            <div class="builder-note">Use the builder to generate a valid rule string. The raw rule field stays editable for direct input.</div>
-          </div>
-          <div class="builder-grid">
-            <div class="field">
-              <label for="builderMode">Builder mode</label>
-              <select id="builderMode" onchange="updateRuleFromBuilder()">
-                <option value="TOKEN_BUCKET">TOKEN_BUCKET</option>
-                <option value="SLIDING_WINDOW">SLIDING_WINDOW</option>
-              </select>
-            </div>
-            <div class="field" id="builderRateField">
-              <label for="builderRate">Rate</label>
-              <input id="builderRate" value="20" inputmode="numeric" oninput="updateRuleFromBuilder()" />
-              <div class="field-note">Requests per second for token bucket rules.</div>
-            </div>
-            <div class="field" id="builderLimitField" style="display:none;">
-              <label for="builderLimit">Limit</label>
-              <input id="builderLimit" value="5" inputmode="numeric" oninput="updateRuleFromBuilder()" />
-              <div class="field-note">Maximum number of requests in the window.</div>
-            </div>
-            <div class="field" id="builderWindowField" style="display:none;">
-              <label for="builderWindow">Window</label>
-              <input id="builderWindow" value="10s" oninput="updateRuleFromBuilder()" />
-              <div class="field-note">Window duration such as <code>10s</code>, <code>1m</code>, or <code>500ms</code>.</div>
-            </div>
-          </div>
-        </div>
-
-        <form onsubmit="send(event)">
+        <form onsubmit="handleRequestSubmit(event)">
           <div class="grid">
             <div class="field">
-              <label for="ns">Namespace</label>
-              <input id="ns" value="api" oninput="updatePreview()" />
-              <div class="field-note">Separates one traffic group from another, such as <code>api</code> or <code>checkout</code>.</div>
-            </div>
-            <div class="field">
-              <label for="key">Key</label>
+              <label for="key">Subject</label>
               <input id="key" value="user123" oninput="updatePreview()" />
-              <div class="field-note">Identifies the client being limited, such as a user ID, tenant, or IP address.</div>
+              <div class="field-note">The raw <code>key</code> value sent to the service, usually a user ID, tenant, or IP address.</div>
             </div>
           </div>
 
           <div class="grid">
             <div class="field">
-              <label for="rule">Rule</label>
+              <label for="rule">Limit</label>
               <input id="rule" value="20rps" oninput="handleRuleInput()" />
-              <div class="field-note">Supported formats: <code>20rps</code> for token bucket and <code>5/10s</code> for sliding window.</div>
-            </div>
-            <div class="field">
-              <label for="algo">Algorithm</label>
-              <select id="algo" onchange="updatePreview()">
-                <option value="AUTO">AUTO (infer from rule)</option>
-                <option value="TOKEN_BUCKET">TOKEN_BUCKET</option>
-                <option value="SLIDING_WINDOW">SLIDING_WINDOW</option>
-              </select>
-              <div class="field-note">Keep this on <code>AUTO</code> in most cases. The service infers the appropriate algorithm from the rule format.</div>
+              <div class="field-note">Raw limit formats: <code>20rps</code> for burst-friendly mode and <code>5/10s</code> for strict-window mode.</div>
             </div>
           </div>
 
-          <div class="field">
-            <label for="cost">Cost</label>
-            <input id="cost" value="1" inputmode="numeric" oninput="updatePreview()" />
-            <div class="field-note">Applies a multi-unit charge when a single request should consume additional budget.</div>
-          </div>
+          <details id="advancedRequestDrawer" class="tool-drawer request-advanced-drawer" data-advanced="true" data-persist-drawer="advancedRequestDrawer">
+            <summary>Open advanced request controls</summary>
+            <div class="tool-drawer-body request-advanced-body">
+              <div class="builder-card">
+                <div>
+                  <h3>Limit Builder</h3>
+                  <div class="builder-note">Choose a friendly limit style and the raw limit string will update for you automatically.</div>
+                </div>
+                <div class="builder-grid">
+                  <div class="field">
+                    <label for="builderMode">Limit style</label>
+                    <select id="builderMode" onchange="updateRuleFromBuilder()">
+                      <option value="TOKEN_BUCKET">Burst-friendly (token bucket)</option>
+                      <option value="SLIDING_WINDOW">Strict window (sliding window)</option>
+                    </select>
+                  </div>
+                  <div class="field" id="builderRateField">
+                    <label for="builderRate">Rate</label>
+                    <div class="builder-slider-shell">
+                      <input
+                        id="builderRateSlider"
+                        class="builder-slider"
+                        type="range"
+                        min="1"
+                        max="200"
+                        step="1"
+                        value="20"
+                        data-default-max="200"
+                        oninput="handleNumericSliderInput('builderRate', updateRuleFromBuilder)" />
+                      <input
+                        id="builderRate"
+                        class="builder-slider-input"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value="20"
+                        inputmode="numeric"
+                        oninput="handleNumericInput('builderRate', updateRuleFromBuilder)" />
+                    </div>
+                    <div class="field-note">Requests per second for burst-friendly limits.</div>
+                  </div>
+                  <div class="field" id="builderLimitField" style="display:none;">
+                    <label for="builderLimit">Limit</label>
+                    <div class="builder-slider-shell">
+                      <input
+                        id="builderLimitSlider"
+                        class="builder-slider"
+                        type="range"
+                        min="1"
+                        max="50"
+                        step="1"
+                        value="5"
+                        data-default-max="50"
+                        oninput="handleNumericSliderInput('builderLimit', updateRuleFromBuilder)" />
+                      <input
+                        id="builderLimit"
+                        class="builder-slider-input"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value="5"
+                        inputmode="numeric"
+                        oninput="handleNumericInput('builderLimit', updateRuleFromBuilder)" />
+                    </div>
+                    <div class="field-note">Maximum number of requests in the window.</div>
+                  </div>
+                  <div class="field" id="builderWindowField" style="display:none;">
+                    <label for="builderWindow">Window</label>
+                    <input id="builderWindow" value="10s" oninput="updateRuleFromBuilder()" />
+                    <div class="field-note">Window duration such as <code>10s</code>, <code>1m</code>, or <code>500ms</code>.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid">
+                <div class="field">
+                  <label for="ns">Traffic group</label>
+                  <input id="ns" value="api" oninput="updatePreview()" />
+                  <div class="field-note">Maps to the raw <code>namespace</code> value sent to the service, such as <code>api</code> or <code>checkout</code>.</div>
+                </div>
+                <div class="field">
+                  <label for="algo">Strategy</label>
+                  <select id="algo" onchange="updatePreview()">
+                    <option value="AUTO">Auto-detect from the limit</option>
+                    <option value="TOKEN_BUCKET">Burst-friendly (token bucket)</option>
+                    <option value="SLIDING_WINDOW">Strict window (sliding window)</option>
+                  </select>
+                  <div class="field-note">Leave this on auto in most cases. The service can infer the right strategy from the raw limit format.</div>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="cost">Request weight</label>
+                <div class="builder-slider-shell">
+                  <input
+                    id="costSlider"
+                    class="builder-slider"
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value="1"
+                    data-default-max="10"
+                    oninput="handleNumericSliderInput('cost', updatePreview)" />
+                  <input
+                    id="cost"
+                    class="builder-slider-input"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value="1"
+                    inputmode="numeric"
+                    oninput="handleNumericInput('cost', updatePreview)" />
+                </div>
+                <div class="field-note">Use a higher weight when one request should spend more budget than a standard check.</div>
+              </div>
+            </div>
+          </details>
 
           <div id="validationBox" class="validation">
-            <strong>Validation review</strong>
+            <strong>Check before sending</strong>
             <ul id="validationList"></ul>
           </div>
 
-          <div class="actions">
-            <button id="submitBtn" class="primary" type="submit">Send Allow Request</button>
-            <div id="status" class="status">Ready.</div>
+          <div class="control-strip">
+            <div class="run-mode-row">
+              <div class="run-mode-toggle" aria-label="Request execution mode">
+                <button id="singleModeBtn" class="mode-toggle-button active" type="button" onclick="setRequestRunMode('single')" aria-pressed="true">Send once</button>
+                <button id="continuousModeBtn" class="mode-toggle-button" type="button" onclick="setRequestRunMode('continuous')" aria-pressed="false">Continuous</button>
+              </div>
+              <div id="streamSettings" class="stream-controls" hidden>
+                <div class="stream-presets" aria-label="Continuous interval presets">
+                  <button class="stream-preset" type="button" onclick="applyStreamIntervalPreset(50)">50 ms</button>
+                  <button class="stream-preset" type="button" onclick="applyStreamIntervalPreset(200)">200 ms</button>
+                  <button class="stream-preset" type="button" onclick="applyStreamIntervalPreset(1000)">1 s</button>
+                </div>
+                <div class="field stream-field">
+                  <label for="streamIntervalMs">Cadence</label>
+                  <div class="builder-slider-shell">
+                    <input
+                      id="streamIntervalMsSlider"
+                      class="builder-slider"
+                      type="range"
+                      min="50"
+                      max="5000"
+                      step="10"
+                      value="200"
+                      data-default-max="5000"
+                      oninput="handleNumericSliderInput('streamIntervalMs', handleStreamIntervalInput)" />
+                    <input
+                      id="streamIntervalMs"
+                      class="builder-slider-input"
+                      type="number"
+                      min="50"
+                      step="10"
+                      value="200"
+                      inputmode="numeric"
+                      oninput="handleNumericInput('streamIntervalMs', handleStreamIntervalInput)" />
+                  </div>
+                </div>
+                <div class="stream-hint">Minimum <code>50</code> ms between checks.</div>
+                <div class="spike-controls">
+                  <label class="spike-toggle" for="randomSpikesEnabled">
+                    <input id="randomSpikesEnabled" type="checkbox" onchange="handleRandomSpikeToggle()" />
+                    <span>Add random spikes on top of the base stream</span>
+                  </label>
+                  <div id="randomSpikeProfileField" class="field stream-field spike-profile-field">
+                    <label for="randomSpikeProfile">Spike profile</label>
+                    <select id="randomSpikeProfile" onchange="handleRandomSpikeProfileChange()">
+                      <option value="light">Light</option>
+                      <option value="medium" selected>Medium</option>
+                      <option value="heavy">Heavy</option>
+                    </select>
+                  </div>
+                  <div id="randomSpikeHint" class="stream-hint spike-hint">Occasionally injects extra checks to simulate bursty traffic.</div>
+                </div>
+              </div>
+            </div>
+            <div id="runModeHint" class="run-mode-hint">Choose Continuous to open cadence presets and the random spike overlay.</div>
+
+            <div class="action-strip">
+              <button id="submitBtn" class="primary" type="submit">Send once</button>
+              <button id="stopStreamBtn" class="secondary stop-stream" type="button" onclick="stopContinuousStream()" disabled hidden>Stop stream</button>
+              <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true">Ready.</div>
+            </div>
+
+            <div id="streamSummary" class="stream-summary">Continuous mode is idle.</div>
           </div>
         </form>
       </section>
 
       <section class="stack">
-        <section class="card summary-card">
+        <section class="card summary-card" data-advanced="true" data-advanced-panel="build">
           <div class="section-head">
-            <h3>Request Summary</h3>
+            <h3>What This Check Does</h3>
           </div>
           <div class="summary-shell">
-            <div class="summary-kicker">Active Request</div>
+            <div class="summary-kicker">Live Request Preview</div>
             <div class="summary-preview">
               <div id="preview" class="preview"></div>
             </div>
             <div class="summary-meta">
-              <div class="muted-pill" id="effectiveAlgoPill">Effective algorithm: awaiting input.</div>
-              <div id="redisKeyPreview" class="item redis-key">
-                <strong>Redis key preview</strong>
-                The computed Redis key will appear once the request is valid enough to infer an algorithm.
+              <div class="muted-pill" id="effectiveAlgoPill">Effective strategy: awaiting input.</div>
+              <div id="redisKeyPreview" class="item redis-key" data-advanced="true">
+                <strong>Computed Redis key</strong>
+                The computed Redis key will appear once the request is valid enough to infer a strategy.
               </div>
             </div>
           </div>
         </section>
 
-        <section class="card simulator-card">
+        <section class="card simulator-card" data-advanced="true" data-advanced-panel="build">
           <div class="section-head">
-            <h3>Algorithm Simulator</h3>
-            <div class="section-copy">These two cards compare the active request under the current algorithm and the closest counterpart of the alternate algorithm.</div>
+            <h3>Strategy Comparison</h3>
+            <div class="section-copy">These two cards compare how the current request behaves in burst-friendly mode versus a strict window.</div>
           </div>
           <div class="simulator-shell">
-            <div class="sim-kicker">Side-by-Side Comparison</div>
+            <div class="sim-kicker">Side-by-Side View</div>
             <div id="simulatorGrid" class="sim-grid"></div>
           </div>
         </section>
       </section>
     </section>
 
-    <section class="card">
+    <section id="result" class="card">
       <div class="section-head">
-        <h2>Response</h2>
-        <div id="resultBadge" class="badge">No request sent yet</div>
+        <h2>Result</h2>
+        <div id="resultBadge" class="badge" aria-live="polite" aria-atomic="true">Awaiting check</div>
       </div>
+      <div class="result-verdict-shell" aria-live="polite" aria-atomic="true">
+        <div id="resultVerdict" class="result-verdict verdict-idle">Awaiting check</div>
+        <div id="resultMeta" class="result-meta">Send one check to get a decision, remaining budget, or retry guidance.</div>
+      </div>
+      <div id="decisionHeadline" class="decision-headline">Ready for a first check.</div>
       <div class="response-copy">
-        <p><code>allowed</code> indicates whether the request passed. <code>remaining</code> shows the available budget after evaluation. <code>retry_after_ms</code> indicates how long to wait following a denial.</p>
+        <p>Start with the quick read below. Open the raw response only if you need the exact payload.</p>
+      </div>
+      <div class="next-step">
+        <strong>Suggested next step</strong>
+        <div id="nextStepHint">Send one check to see remaining budget and the recommended follow-up.</div>
       </div>
       <div id="responseSummary" class="response-summary">
         Submit a request to generate a plain-language interpretation of the service response.
@@ -1387,156 +503,131 @@
         <strong>Why this result occurred</strong>
         Submit a request to review validation issues, acceptance details, or denial reasoning.
       </div>
-      <pre id="out">{
-  "tip": "Press \"Send Allow Request\" to call the service."
+      <details id="responseRaw" class="response-raw" data-persist-drawer="responseRaw">
+        <summary>Show raw response JSON</summary>
+        <pre id="out">{
+  "tip": "Press \"Send once\" to call the service."
 }</pre>
+      </details>
     </section>
 
-    <section class="card">
-      <div class="section-head">
-        <h2>API Examples</h2>
+    <details id="apiExamples" class="card utility-panel" data-advanced="true" data-advanced-panel="build" data-persist-drawer="apiExamples" hidden>
+      <summary>Copyable Examples</summary>
+      <div class="utility-panel-body">
         <div class="section-copy">These examples update with the current form values and can be copied directly into scripts, tests, or terminal sessions.</div>
-      </div>
-      <div class="copy-grid">
-        <div class="mini-card">
-          <strong>JSON payload</strong>
-          <div id="jsonExample" class="copy-box">{}</div>
-          <div class="copy-actions">
-            <button class="secondary" type="button" onclick="copyExample('json')">Copy JSON payload</button>
+        <div class="copy-grid">
+          <div class="mini-card">
+            <strong>JSON payload</strong>
+            <div id="jsonExample" class="copy-box">{}</div>
+            <div class="copy-actions">
+              <button class="secondary" type="button" onclick="copyExample('json')">Copy JSON payload</button>
+            </div>
+          </div>
+          <div class="mini-card">
+            <strong>cURL request</strong>
+            <div id="curlExample" class="copy-box">curl ...</div>
+            <div class="copy-actions">
+              <button class="secondary" type="button" onclick="copyExample('curl')">Copy cURL command</button>
+            </div>
           </div>
         </div>
-        <div class="mini-card">
-          <strong>cURL request</strong>
-          <div id="curlExample" class="copy-box">curl ...</div>
-          <div class="copy-actions">
-            <button class="secondary" type="button" onclick="copyExample('curl')">Copy cURL command</button>
-          </div>
+      </div>
+    </details>
+
+    <details id="recentRequestsSection" class="card utility-panel" data-advanced="true" data-advanced-panel="build" data-persist-drawer="recentRequestsSection" hidden>
+      <summary>Recent Checks</summary>
+      <div class="utility-panel-body">
+        <div class="section-copy">The last few checks submitted from this page are listed here for quick comparison.</div>
+        <div class="history-card">
+          <strong>Check timeline</strong>
+          <div class="table-note">Local checks from this page are plotted as events. Hover over a point to inspect the exact request and outcome.</div>
+          <div id="requestTimelineChart" class="chart-frame history-chart"></div>
+          <div id="requestTimelineMeta" class="chart-meta">No local checks have been submitted from this page yet.</div>
         </div>
+        <div class="table-note">This history is stored locally in the browser for this page.</div>
+      <div id="historyEmpty" class="history-empty">Run one check to start local history.</div>
+        <table id="historyTable" class="history-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Traffic Group</th>
+              <th>Subject</th>
+              <th>Limit</th>
+              <th>Decision</th>
+              <th>Remaining</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
       </div>
-    </section>
+    </details>
 
-    <section class="card">
+    <section id="observability" class="card" data-advanced="true" data-advanced-panel="observe">
       <div class="section-head">
-        <h2>Recent Requests</h2>
-        <div class="section-copy">The last few requests submitted from this page are listed here for quick comparison.</div>
-      </div>
-      <div class="history-card">
-        <strong>Request timeline</strong>
-        <div class="table-note">Local requests from this page are plotted as events. Hover over a point to inspect the exact request and outcome.</div>
-        <div id="requestTimelineChart" class="chart-frame history-chart"></div>
-        <div id="requestTimelineMeta" class="chart-meta">No local requests have been submitted from this page yet.</div>
-      </div>
-      <div class="table-note">This history is stored locally in the browser for this page.</div>
-      <div id="historyEmpty" class="history-empty">No requests have been submitted from this page yet.</div>
-      <table id="historyTable" class="history-table" style="display:none;">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Namespace</th>
-            <th>Key</th>
-            <th>Rule</th>
-            <th>Decision</th>
-            <th>Remaining</th>
-          </tr>
-        </thead>
-        <tbody id="historyBody"></tbody>
-      </table>
-    </section>
-
-    <section class="card">
-      <div class="section-head">
-        <h2>Observability</h2>
-        <div class="section-copy">Live metrics from Prometheus. Each decision is also streamed in real time and traceable end-to-end through Loki and Tempo.</div>
-      </div>
-
-      <div class="link-row">
-        <a id="streamerLink" class="link-chip" target="_blank" rel="noreferrer" style="border-color:rgba(31,111,95,.3);background:var(--surface-accent)">
-          <strong>⚡ Event Stream</strong>
-          Live WebSocket feed of every rate-limit decision.
-        </a>
-        <a id="debugLink" class="link-chip" target="_blank" rel="noreferrer" style="border-color:rgba(31,111,95,.3);background:var(--surface-accent)">
-          <strong>🔍 Debug Dashboard</strong>
-          Logs · alerts · chaos engineering · container status.
-        </a>
-        <a id="grafanaLink" class="link-chip" target="_blank" rel="noreferrer">
-          <strong>Grafana</strong>
-          Metrics, logs, traces, and provisioned dashboards.
-        </a>
-        <a id="alertmanagerLink" class="link-chip" target="_blank" rel="noreferrer">
-          <strong>AlertManager</strong>
-          Active firing alerts and routing configuration.
-        </a>
-        <a id="prometheusLink" class="link-chip" target="_blank" rel="noreferrer">
-          <strong>Prometheus</strong>
-          Inspect raw queries and current target health.
-        </a>
-        <a id="envoyLink" class="link-chip" target="_blank" rel="noreferrer">
-          <strong>Envoy Admin</strong>
-          Review listener and upstream details on the host.
-        </a>
-        <div class="link-chip">
-          <strong>gRPC endpoint</strong>
-          <code id="grpcHost">localhost:50051</code>
-        </div>
+        <h2>Decision Health</h2>
+        <div class="section-copy">Start with the three signals that matter most: traffic volume, rejection pressure, and latency. Open the deeper tools only when you need them.</div>
       </div>
 
       <div class="metric-grid">
         <div class="metric-card">
-          <strong>Total request rate</strong>
+          <strong>Traffic Volume</strong>
           <span id="requestRateValue" class="metric-value">--</span>
-          <span class="metric-subtle">Combined request throughput across the rate limiter service.</span>
+          <span class="metric-subtle">Current request throughput across the rate limiter service.</span>
         </div>
         <div class="metric-card">
-          <strong>Allowed rate</strong>
-          <span id="allowedRateValue" class="metric-value">--</span>
-          <span class="metric-subtle">Requests per second currently being accepted.</span>
-        </div>
-        <div class="metric-card">
-          <strong>Denied rate</strong>
-          <span id="deniedRateValue" class="metric-value">--</span>
-          <span class="metric-subtle">Requests per second currently being rejected.</span>
+          <strong>Deny Ratio</strong>
+          <span id="decisionHealthRatioValue" class="metric-value">--</span>
+          <span class="metric-subtle">Share of recent traffic currently being rejected.</span>
         </div>
         <div class="metric-card">
           <strong>P95 latency</strong>
           <span id="latencyValue" class="metric-value">--</span>
-          <span id="targetsValue" class="metric-subtle">Awaiting Prometheus data.</span>
+          <span id="targetsValue" class="metric-subtle">Waiting for the first monitoring refresh.</span>
         </div>
       </div>
+
+      <details id="monitoringToolsDrawer" class="tool-drawer" data-persist-drawer="monitoringToolsDrawer">
+        <summary>Open monitoring tools</summary>
+        <div class="tool-drawer-body">
+          <div class="link-row">
+            <a id="streamerLink" class="link-chip link-chip-priority" target="_blank" rel="noreferrer">
+              <strong>Live Event Stream</strong>
+              Open the standalone WebSocket feed of every rate-limit decision.
+            </a>
+            <a id="debugLink" class="link-chip link-chip-priority" target="_blank" rel="noreferrer">
+              <strong>Debug Dashboard</strong>
+              Logs, alerts, chaos actions, and container status in one place.
+            </a>
+            <a id="grafanaLink" class="link-chip" target="_blank" rel="noreferrer">
+              <strong>Grafana</strong>
+              Metrics, logs, traces, and provisioned dashboards.
+            </a>
+            <a id="alertmanagerLink" class="link-chip" target="_blank" rel="noreferrer">
+              <strong>AlertManager</strong>
+              Active firing alerts and routing configuration.
+            </a>
+            <a id="prometheusLink" class="link-chip" target="_blank" rel="noreferrer">
+              <strong>Prometheus</strong>
+              Inspect raw queries and target health.
+            </a>
+            <a id="envoyLink" class="link-chip" target="_blank" rel="noreferrer">
+              <strong>Envoy Admin</strong>
+              Review listener and upstream details on the host.
+            </a>
+            <div class="link-chip">
+              <strong>gRPC endpoint</strong>
+              <code id="grpcHost">localhost:50051</code>
+            </div>
+          </div>
+        </div>
+      </details>
 
       <div class="chart-grid">
         <div class="chart-card">
           <div class="chart-top">
             <div>
-              <h3>Request rate</h3>
-              <div class="subtle">Last 10 minutes, refreshed every 5 seconds.</div>
-            </div>
-            <div class="chart-legend">
-              <span class="legend-item"><span class="legend-dot accent"></span>Total requests</span>
-            </div>
-          </div>
-          <div id="requestRateChart" class="chart-frame"></div>
-          <div class="chart-stats">
-            <div class="chart-stat">
-              <strong>Latest</strong>
-              <span id="requestRateLatest">--</span>
-            </div>
-            <div class="chart-stat">
-              <strong>Peak</strong>
-              <span id="requestRatePeak">--</span>
-            </div>
-            <div class="chart-stat">
-              <strong>Average</strong>
-              <span id="requestRateAverage">--</span>
-            </div>
-          </div>
-          <div id="requestRateMeta" class="chart-meta">Loading Prometheus data...</div>
-          <div class="chart-help">Shows overall request throughput during the last 10 minutes.</div>
-        </div>
-        <div class="chart-card">
-          <div class="chart-top">
-            <div>
-              <h3>Allowed vs denied</h3>
-              <div class="subtle">Latest decision mix across the service.</div>
+              <h3>Allowed vs Denied</h3>
+              <div class="subtle">How accepted and rejected traffic are moving together.</div>
             </div>
             <div class="chart-legend">
               <span class="legend-item"><span class="legend-dot blue"></span>Allowed</span>
@@ -1546,11 +637,11 @@
           <div id="allowedRateChart" class="chart-frame"></div>
           <div class="chart-stats">
             <div class="chart-stat">
-              <strong>Allowed</strong>
+              <strong>Allowed Now</strong>
               <span id="allowedRateLatest">--</span>
             </div>
             <div class="chart-stat">
-              <strong>Denied</strong>
+              <strong>Denied Now</strong>
               <span id="deniedRateLatest">--</span>
             </div>
             <div class="chart-stat">
@@ -1558,138 +649,221 @@
               <span id="denyRatio">--</span>
             </div>
           </div>
-          <div id="allowedRateMeta" class="chart-meta">Loading Prometheus data...</div>
+          <div id="allowedRateMeta" class="chart-meta">Waiting for the first monitoring refresh.</div>
           <div class="chart-help">Shows successful and rejected traffic. Submit a few requests if the chart is empty.</div>
         </div>
-        <div class="chart-card wide">
-          <div class="chart-top">
-            <div>
-              <h3>P95 latency</h3>
-              <div class="subtle">Tail latency is more useful than average latency when diagnosing slower requests.</div>
-            </div>
-            <div class="chart-legend">
-              <span class="legend-item"><span class="legend-dot amber"></span>P95 latency</span>
-            </div>
-          </div>
-          <div id="latencyChart" class="chart-frame large-chart"></div>
-          <div class="chart-stats">
-            <div class="chart-stat">
-              <strong>Latest</strong>
-              <span id="latencyLatest">--</span>
-            </div>
-            <div class="chart-stat">
-              <strong>Peak</strong>
-              <span id="latencyPeak">--</span>
-            </div>
-            <div class="chart-stat">
-              <strong>Average</strong>
-              <span id="latencyAverage">--</span>
-            </div>
-          </div>
-          <div id="latencyMeta" class="chart-meta">Loading Prometheus data...</div>
-          <div class="chart-help">Shows the 95th percentile of request latency, which highlights slower requests instead of only the average.</div>
-        </div>
       </div>
+
+      <details id="latencyDrawer" class="tool-drawer tool-drawer-chart" data-persist-drawer="latencyDrawer">
+        <summary>Latency details</summary>
+        <div class="tool-drawer-body">
+          <div class="chart-card chart-card-secondary">
+            <div class="chart-top">
+              <div>
+                <h3>P95 latency</h3>
+                <div class="subtle">Tail latency is the quickest way to spot slower requests before averages drift.</div>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot amber"></span>P95 latency</span>
+              </div>
+            </div>
+            <div id="latencyChart" class="chart-frame large-chart"></div>
+            <div class="chart-stats">
+              <div class="chart-stat">
+                <strong>Latest</strong>
+                <span id="latencyLatest">--</span>
+              </div>
+              <div class="chart-stat">
+                <strong>Peak</strong>
+                <span id="latencyPeak">--</span>
+              </div>
+              <div class="chart-stat">
+                <strong>Average</strong>
+                <span id="latencyAverage">--</span>
+              </div>
+            </div>
+            <div id="latencyMeta" class="chart-meta">Waiting for the first monitoring refresh.</div>
+            <div class="chart-help">Shows the 95th percentile of request latency so the slow edge is easier to spot.</div>
+          </div>
+        </div>
+      </details>
+
+      <details id="trafficTrendDrawer" class="tool-drawer tool-drawer-chart" data-persist-drawer="trafficTrendDrawer">
+        <summary>Traffic volume trend</summary>
+        <div class="tool-drawer-body">
+          <div class="chart-card chart-card-secondary">
+            <div class="chart-top">
+              <div>
+                <h3>Request rate</h3>
+                <div class="subtle">Last 10 minutes, refreshed every 5 seconds.</div>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot accent"></span>Total requests</span>
+              </div>
+            </div>
+            <div id="requestRateChart" class="chart-frame"></div>
+            <div class="chart-stats">
+              <div class="chart-stat">
+                <strong>Latest</strong>
+                <span id="requestRateLatest">--</span>
+              </div>
+              <div class="chart-stat">
+                <strong>Peak</strong>
+                <span id="requestRatePeak">--</span>
+              </div>
+              <div class="chart-stat">
+                <strong>Average</strong>
+                <span id="requestRateAverage">--</span>
+              </div>
+            </div>
+            <div id="requestRateMeta" class="chart-meta">Waiting for the first monitoring refresh.</div>
+            <div class="chart-help">Shows overall request throughput during the last 10 minutes.</div>
+          </div>
+        </div>
+      </details>
     </section>
 
     <!-- ── Service Health ──────────────────────────────────────────────── -->
-    <section class="card">
-      <div class="section-head">
-        <h2>Service Health</h2>
+    <details id="stackHealthDrawer" class="card utility-panel observe-secondary-panel" data-advanced="true" data-advanced-panel="observe" data-persist-drawer="stackHealthDrawer">
+      <summary>Stack Health</summary>
+      <div class="utility-panel-body">
         <div class="section-copy">Live status of every stack component. Refreshed every 5 seconds.</div>
+        <div id="healthGrid" class="health-grid">
+          <div class="placeholder-row" aria-hidden="true">
+            <span class="skeleton-chip"></span>
+            <span class="skeleton-chip skeleton-chip-short"></span>
+            <span class="skeleton-chip skeleton-chip-long"></span>
+          </div>
+        </div>
       </div>
-      <div id="healthGrid" class="health-grid">
-        <div class="health-item"><span class="health-dot unknown"></span><span class="health-label">Loading…</span></div>
-      </div>
-    </section>
+    </details>
 
     <!-- ── Live Event Feed ─────────────────────────────────────────────── -->
-    <section class="card">
+    <section id="events" class="card" data-advanced="true" data-advanced-panel="events">
       <div class="section-head">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <h2 style="margin:0">Live Event Feed</h2>
-          <span id="wsStatus" class="ws-badge connecting">Connecting…</span>
+        <div class="section-title-row">
+          <h2>Live Event Feed</h2>
+          <span id="wsStatus" class="ws-badge connecting" role="status" aria-live="polite" aria-atomic="true">Connecting…</span>
         </div>
-        <div class="section-copy">Every rate-limit decision streamed in real time via WebSocket from the Redis Stream. Newest first.</div>
+        <div class="section-copy">Every rate-limit decision streamed in real time from the Redis Stream. Pause the feed, search for a subject, and click a row for details.</div>
       </div>
       <div class="event-controls">
-        <label style="font-size:12px;color:var(--muted);font-weight:600">Filter</label>
-        <select id="evtFilterResult" style="padding:4px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:var(--surface);color:var(--text)">
+        <label class="control-label" for="evtFilterResult">Filter</label>
+        <select id="evtFilterResult" class="toolbar-select">
           <option value="">All</option>
           <option value="allowed">Allowed only</option>
           <option value="denied">Denied only</option>
         </select>
+        <label class="control-label" for="eventSearch">Search</label>
+        <input id="eventSearch" class="toolbar-input" type="search" placeholder="Subject, group, instance..." />
         <span id="eventCounter" class="event-counter">0 events</span>
-        <button onclick="clearEvents()" style="margin-left:auto;padding:4px 12px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:var(--surface);cursor:pointer;color:var(--muted)">Clear</button>
+        <button id="pauseEventsBtn" class="toolbar-button" type="button" onclick="toggleEventPause()" aria-pressed="false">Pause</button>
+        <button class="toolbar-button" onclick="clearEvents()">Clear</button>
       </div>
+      <div id="eventFeedStatus" class="event-feed-status" role="status" aria-live="polite" aria-atomic="true">Showing live events as they arrive.</div>
       <div class="event-table-wrap">
         <table class="event-table">
           <thead>
             <tr>
-              <th>Time</th><th>Namespace</th><th>Key</th><th>Algorithm</th>
+              <th>Time</th><th>Traffic Group</th><th>Subject</th><th>Strategy</th>
               <th>Result</th><th>Remaining</th><th>Latency</th><th>Instance</th>
             </tr>
           </thead>
           <tbody id="eventTableBody">
-            <tr><td colspan="8" class="event-empty">Waiting for events — submit a request or run generate_traffic.sh.</td></tr>
+            <tr><td colspan="8" class="event-empty">No live events yet.</td></tr>
           </tbody>
         </table>
+      </div>
+      <div class="event-detail-card">
+        <div class="section-title-row">
+          <h3>Selected Event</h3>
+          <div id="eventDetailMeta" class="subtle">Choose a row to inspect the exact event payload.</div>
+        </div>
+        <div id="eventDetailBody" class="event-detail-empty">No event selected yet.</div>
       </div>
     </section>
 
     <!-- ── Alerts + Logs ──────────────────────────────────────────────── -->
-    <div class="obs-two-col">
-      <section class="card">
-        <div class="section-head">
-          <h2>Active Alerts</h2>
-          <div class="section-copy">Firing alerts from AlertManager. Refreshed every 15 seconds.</div>
-        </div>
-        <div id="alertsList" class="alerts-list">
-          <div class="alerts-empty">Loading…</div>
-        </div>
-      </section>
+    <details id="logsAlertsDrawer" class="card utility-panel observe-secondary-panel" data-advanced="true" data-advanced-panel="observe" data-persist-drawer="logsAlertsDrawer">
+      <summary>Logs and Alerts</summary>
+      <div class="utility-panel-body">
+        <div class="obs-two-col utility-two-col">
+          <section class="card embedded-utility-card">
+            <div class="section-head">
+              <h2>Active Alerts</h2>
+              <div class="section-copy">Firing alerts from AlertManager. Refreshed every 15 seconds.</div>
+            </div>
+            <div id="alertsList" class="alerts-list">
+              <div class="placeholder-stack" aria-hidden="true">
+                <span class="skeleton-card"></span>
+                <span class="skeleton-card skeleton-card-short"></span>
+              </div>
+            </div>
+          </section>
 
-      <section class="card">
-        <div class="section-head">
-          <h2>Recent Logs</h2>
-          <div class="section-copy">Structured log lines from Loki. Refreshed every 15 seconds.</div>
+          <section class="card embedded-utility-card">
+            <div class="section-head">
+              <h2>Recent Logs</h2>
+              <div class="section-copy">Structured log lines from Loki. Refreshed every 15 seconds.</div>
+            </div>
+            <div class="log-filter-row">
+              <label class="control-label" for="logService">Service</label>
+              <select id="logService" onchange="loadLogs()">
+                <option value="ratelimiter">ratelimiter</option>
+                <option value="webui">webui</option>
+                <option value="streamer">streamer</option>
+              </select>
+            </div>
+            <div id="logsList" class="logs-wrap">
+              <div class="placeholder-stack placeholder-log" aria-hidden="true">
+                <span class="skeleton-line"></span>
+                <span class="skeleton-line skeleton-line-short"></span>
+                <span class="skeleton-line skeleton-line-long"></span>
+              </div>
+            </div>
+          </section>
         </div>
-        <div class="log-filter-row">
-          <label style="font-size:12px;color:var(--muted);font-weight:600">Service</label>
-          <select id="logService" onchange="loadLogs()">
-            <option value="ratelimiter">ratelimiter</option>
-            <option value="webui">webui</option>
-            <option value="streamer">streamer</option>
-          </select>
-        </div>
-        <div id="logsList" class="logs-wrap">
-          <div class="log-line"><span class="log-msg" style="color:#5a7a9a">Loading…</span></div>
-        </div>
-      </section>
-    </div>
+      </div>
+    </details>
 
     <!-- ── Chaos Engineering ──────────────────────────────────────────── -->
-    <section class="card">
+    <section id="chaos" class="card" data-advanced="true" data-advanced-panel="chaos">
       <div class="section-head">
         <h2>Chaos Engineering</h2>
-        <div class="section-copy">Deliberately kill containers to test fault tolerance and recovery. Restore all returns every exited container to running.</div>
+        <div class="section-copy">Use these controls only when you are intentionally testing recovery behavior. Every action below can interrupt live requests until the stack stabilizes again.</div>
+      </div>
+      <div class="chaos-safety">
+        <strong>Use these only during failure drills.</strong>
+        <div>Stopping the rate limiter or Redis can trigger request failures, empty metrics, and noisy alerts until recovery finishes.</div>
       </div>
       <div class="chaos-controls">
-        <button class="chaos-btn danger"  onclick="chaosAction(this, '/api/chaos/kill-ratelimiter')">Kill Rate Limiter</button>
-        <button class="chaos-btn warn"    onclick="chaosAction(this, '/api/chaos/kill-redis')">Kill Redis Node</button>
-        <button class="chaos-btn restore" onclick="chaosAction(this, '/api/chaos/restore')">Restore All</button>
+        <button class="chaos-btn danger" type="button" onclick="promptChaosAction('kill-ratelimiter')">Stop Rate Limiter</button>
+        <button class="chaos-btn warn" type="button" onclick="promptChaosAction('kill-redis')">Stop Redis Node</button>
+        <button class="chaos-btn restore" type="button" onclick="promptChaosAction('restore')">Restore Everything</button>
+      </div>
+      <div id="chaosConfirm" class="chaos-confirm" hidden>
+        <div class="chaos-confirm-copy">
+          <strong id="chaosConfirmTitle">Confirm recovery test</strong>
+          <div id="chaosConfirmText">Choose a chaos action to see its blast radius before you run it.</div>
+        </div>
+        <div class="chaos-confirm-actions">
+          <button class="secondary" type="button" onclick="cancelChaosAction()">Cancel</button>
+          <button id="chaosConfirmSubmit" class="chaos-btn danger" type="button" onclick="confirmChaosAction()">Run action</button>
+        </div>
       </div>
       <div id="chaosResult" class="chaos-result"></div>
       <div class="chaos-table-wrap">
-        <div id="chaosStatus" class="chaos-unavail" style="padding:12px">Loading container status…</div>
+        <div id="chaosStatus" class="chaos-unavail padded-status">Waiting for the first container refresh.</div>
       </div>
     </section>
 
+    </div>
   </main>
 
   <script>
     const scenarios = {
       token: {
+        label: 'Per-user API quota',
         namespace: 'api',
         key: 'user123',
         rule: '20rps',
@@ -1701,6 +875,7 @@
         builderWindow: '10s'
       },
       window: {
+        label: 'Login protection',
         namespace: 'auth',
         key: 'user123',
         rule: '5/10s',
@@ -1712,6 +887,7 @@
         builderWindow: '10s'
       },
       heavy: {
+        label: 'Heavy report generation',
         namespace: 'reports',
         key: 'tenant-acme',
         rule: '12rps',
@@ -1724,12 +900,119 @@
       }
     };
 
+    const randomSpikeProfiles = {
+      light: {
+        label: 'Light spikes',
+        chance: 0.18,
+        minBurst: 2,
+        maxBurst: 3,
+        minSpacingMs: 30,
+        maxSpacingMs: 70
+      },
+      medium: {
+        label: 'Medium spikes',
+        chance: 0.24,
+        minBurst: 2,
+        maxBurst: 4,
+        minSpacingMs: 40,
+        maxSpacingMs: 90
+      },
+      heavy: {
+        label: 'Heavy spikes',
+        chance: 0.48,
+        minBurst: 5,
+        maxBurst: 8,
+        minSpacingMs: 10,
+        maxSpacingMs: 35
+      }
+    };
+
+    const chaosActionDefinitions = {
+      'kill-ratelimiter': {
+        endpoint: '/api/chaos/kill-ratelimiter',
+        title: 'Stop the rate limiter',
+        description: 'New requests may fail or queue while the limiter is unavailable. Use this when you want to test failover and recovery behavior.',
+        confirmLabel: 'Stop rate limiter',
+        tone: 'danger'
+      },
+      'kill-redis': {
+        endpoint: '/api/chaos/kill-redis',
+        title: 'Stop the Redis node',
+        description: 'Shared state, counters, and streamed decisions can become stale or unavailable until Redis comes back. Use this to test degraded state handling.',
+        confirmLabel: 'Stop Redis node',
+        tone: 'warn'
+      },
+      restore: {
+        endpoint: '/api/chaos/restore',
+        title: 'Restore the full stack',
+        description: 'Exited containers will be brought back so the stack can recover. Use this after a drill to return the demo environment to normal.',
+        confirmLabel: 'Restore everything',
+        tone: 'restore'
+      }
+    };
+
     let recentHistory = loadHistory();
     let observabilityInFlight = false;
+    const continuousStream = {
+      running: false,
+      timer: null,
+      sent: 0,
+      allowed: 0,
+      denied: 0,
+      errors: 0,
+      spikeBursts: 0,
+      spikeRequests: 0,
+      lastObservabilityRefreshSent: 0
+    };
+    let activeScenarioName = 'token';
+    let requestViewMode = 'basic';
+    let requestRunMode = 'single';
+    let lastDecisionSummary = 'Awaiting check';
+    let lastDecisionTone = 'idle';
+    let pendingChaosActionKey = '';
+    const storageKeys = {
+      history: 'rl_history',
+      viewMode: 'rl_view_mode',
+      formState: 'rl_form_state',
+      drawers: 'rl_open_drawers'
+    };
+
+    function readJSONStorage(key, fallback) {
+      try {
+        const raw = window.localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (_err) {
+        return fallback;
+      }
+    }
+
+    function writeJSONStorage(key, value) {
+      try {
+        window.localStorage.setItem(key, JSON.stringify(value));
+      } catch (_err) {
+        // Ignore storage write failures and keep working with in-memory state.
+      }
+    }
+
+    function readTextStorage(key, fallback) {
+      try {
+        return window.localStorage.getItem(key) || fallback;
+      } catch (_err) {
+        return fallback;
+      }
+    }
+
+    function writeTextStorage(key, value) {
+      try {
+        window.localStorage.setItem(key, value);
+      } catch (_err) {
+        // Ignore storage write failures and keep working with in-memory state.
+      }
+    }
 
     function loadHistory() {
       try {
-        return JSON.parse(window.localStorage.getItem('rl_history') || '[]')
+        return readJSONStorage(storageKeys.history, [])
           .filter((entry) => entry && typeof entry === 'object')
           .map((entry, index) => ({
             timestampMs: Number.isFinite(entry.timestampMs) ? entry.timestampMs : Date.now() - index * 1000,
@@ -1750,7 +1033,118 @@
     }
 
     function saveHistory() {
-      window.localStorage.setItem('rl_history', JSON.stringify(recentHistory.slice(0, 20)));
+      writeJSONStorage(storageKeys.history, recentHistory.slice(0, 20));
+    }
+
+    function setBuildUtilityVisibility() {
+      const hasHistory = recentHistory.length > 0;
+      const examples = document.getElementById('apiExamples');
+      const history = document.getElementById('recentRequestsSection');
+      if (examples) {
+        examples.hidden = !hasHistory;
+      }
+      if (history) {
+        history.hidden = !hasHistory;
+      }
+    }
+
+    function saveFormState() {
+      writeJSONStorage(storageKeys.formState, {
+        activeScenarioName,
+        namespace: document.getElementById('ns')?.value ?? '',
+        key: document.getElementById('key')?.value ?? '',
+        rule: document.getElementById('rule')?.value ?? '',
+        algorithm: document.getElementById('algo')?.value ?? 'AUTO',
+        cost: document.getElementById('cost')?.value ?? '1',
+        builderMode: document.getElementById('builderMode')?.value ?? 'TOKEN_BUCKET',
+        builderRate: document.getElementById('builderRate')?.value ?? '20',
+        builderLimit: document.getElementById('builderLimit')?.value ?? '5',
+        builderWindow: document.getElementById('builderWindow')?.value ?? '10s',
+        requestRunMode,
+        streamIntervalMs: document.getElementById('streamIntervalMs')?.value ?? '200',
+        randomSpikesEnabled: Boolean(document.getElementById('randomSpikesEnabled')?.checked),
+        randomSpikeProfile: document.getElementById('randomSpikeProfile')?.value ?? 'medium'
+      });
+    }
+
+    function restoreFormState() {
+      const saved = readJSONStorage(storageKeys.formState, null);
+      if (!saved || typeof saved !== 'object') {
+        return false;
+      }
+
+      if (typeof saved.namespace === 'string') {
+        document.getElementById('ns').value = saved.namespace;
+      }
+      if (typeof saved.key === 'string') {
+        document.getElementById('key').value = saved.key;
+      }
+      if (typeof saved.rule === 'string') {
+        document.getElementById('rule').value = saved.rule;
+      }
+      if (typeof saved.algorithm === 'string') {
+        document.getElementById('algo').value = saved.algorithm;
+      }
+      if (typeof saved.cost === 'string' || typeof saved.cost === 'number') {
+        setNumericSliderValue('cost', saved.cost);
+      }
+      if (typeof saved.builderMode === 'string') {
+        document.getElementById('builderMode').value = saved.builderMode;
+      }
+      if (typeof saved.builderRate === 'string' || typeof saved.builderRate === 'number') {
+        setNumericSliderValue('builderRate', saved.builderRate);
+      }
+      if (typeof saved.builderLimit === 'string' || typeof saved.builderLimit === 'number') {
+        setNumericSliderValue('builderLimit', saved.builderLimit);
+      }
+      if (typeof saved.builderWindow === 'string') {
+        document.getElementById('builderWindow').value = saved.builderWindow;
+      }
+      if (typeof saved.streamIntervalMs === 'string' || typeof saved.streamIntervalMs === 'number') {
+        setNumericSliderValue('streamIntervalMs', saved.streamIntervalMs);
+      }
+      if (typeof saved.randomSpikesEnabled === 'boolean') {
+        document.getElementById('randomSpikesEnabled').checked = saved.randomSpikesEnabled;
+      }
+      if (typeof saved.randomSpikeProfile === 'string' && randomSpikeProfiles[saved.randomSpikeProfile]) {
+        document.getElementById('randomSpikeProfile').value = saved.randomSpikeProfile;
+      }
+
+      if (typeof saved.activeScenarioName === 'string' && scenarios[saved.activeScenarioName]) {
+        setActiveScenario(saved.activeScenarioName);
+      } else {
+        activeScenarioName = 'custom';
+        document.querySelectorAll('[data-scenario]').forEach((node) => node.classList.remove('active'));
+      }
+
+      updateBuilderVisibility();
+      updateRandomSpikeHint();
+      requestRunMode = saved.requestRunMode === 'continuous' ? 'continuous' : 'single';
+      updateRequestRunModeUI();
+      updateContinuousStreamSummary();
+      updatePreview();
+      renderValidation(validatePayload(currentPayload()).issues);
+      updateStickySummary();
+      return true;
+    }
+
+    function saveDrawerStates() {
+      const state = {};
+      document.querySelectorAll('details[data-persist-drawer]').forEach((drawer) => {
+        state[drawer.dataset.persistDrawer] = drawer.open;
+      });
+      writeJSONStorage(storageKeys.drawers, state);
+    }
+
+    function initPersistedDrawers() {
+      const saved = readJSONStorage(storageKeys.drawers, {});
+      document.querySelectorAll('details[data-persist-drawer]').forEach((drawer) => {
+        const key = drawer.dataset.persistDrawer;
+        if (typeof saved?.[key] === 'boolean') {
+          drawer.open = saved[key];
+        }
+        drawer.addEventListener('toggle', saveDrawerStates);
+      });
     }
 
     function escapeHTML(value) {
@@ -1760,6 +1154,16 @@
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#39;');
+    }
+
+    function buildEmptyState(message, tone = 'neutral') {
+      const symbol = tone === 'error' ? '!' : tone === 'success' ? '+' : 'i';
+      return `
+        <div class="empty-state empty-state-${escapeHTML(tone)}">
+          <span class="empty-state-icon" aria-hidden="true">${symbol}</span>
+          <span>${escapeHTML(message)}</span>
+        </div>
+      `;
     }
 
     function parseDurationToMs(text) {
@@ -1824,8 +1228,253 @@
       });
     }
 
+    function formatCountLabel(value, singular, plural = `${singular}s`) {
+      const amount = Number(value || 0);
+      return `${amount} ${amount === 1 ? singular : plural}`;
+    }
+
     function setText(id, value) {
-      document.getElementById(id).textContent = value;
+      const element = document.getElementById(id);
+      if (element) {
+        element.textContent = value;
+      }
+    }
+
+    function setLastDecisionSummary(message) {
+      lastDecisionSummary = message || 'Awaiting check';
+      updateStickySummary();
+    }
+
+    function updateStickyDecisionTone() {
+      const card = document.getElementById('stickyDecisionCard');
+      if (!card) {
+        return;
+      }
+      card.dataset.decisionTone = lastDecisionTone || 'idle';
+    }
+
+    function formatStrategyName(value) {
+      switch (String(value || '').trim()) {
+        case 'AUTO':
+          return 'Auto-detect';
+        case 'TOKEN_BUCKET':
+        case 'token_bucket':
+          return 'Burst-friendly';
+        case 'SLIDING_WINDOW':
+        case 'sliding_window':
+          return 'Strict window';
+        case 'UNKNOWN':
+        case '':
+          return 'Unknown';
+        default:
+          return String(value);
+      }
+    }
+
+    function isRandomSpikeOverlayEnabled() {
+      return Boolean(document.getElementById('randomSpikesEnabled')?.checked);
+    }
+
+    function getRandomSpikeProfile() {
+      const selected = document.getElementById('randomSpikeProfile')?.value || 'medium';
+      return randomSpikeProfiles[selected] || randomSpikeProfiles.medium;
+    }
+
+    function updateRandomSpikeHint() {
+      const controls = document.querySelector('.spike-controls');
+      const profileSelect = document.getElementById('randomSpikeProfile');
+      const profileField = document.getElementById('randomSpikeProfileField');
+      const hint = document.getElementById('randomSpikeHint');
+      const enabled = isRandomSpikeOverlayEnabled();
+      const profile = getRandomSpikeProfile();
+
+      if (controls) {
+        controls.classList.toggle('is-disabled', !enabled);
+      }
+
+      if (profileSelect) {
+        profileSelect.disabled = !enabled;
+      }
+
+      if (profileField) {
+        profileField.hidden = !enabled;
+      }
+
+      if (hint) {
+        hint.hidden = !enabled;
+        if (!enabled) {
+          hint.textContent = 'Turn this on to layer bursty traffic over the base cadence and watch where denied decisions begin to appear.';
+          return;
+        }
+
+        const chanceText = `${Math.round(profile.chance * 100)}%`;
+        hint.textContent = `${profile.label} inject ${profile.minBurst}-${profile.maxBurst} extra checks in about ${chanceText} of cycles, spaced ${profile.minSpacingMs}-${profile.maxSpacingMs} ms apart.`;
+      }
+    }
+
+    function getActiveScenarioLabel() {
+      return scenarios[activeScenarioName]?.label || 'Custom request';
+    }
+
+    function setToggleState(id, active) {
+      const element = document.getElementById(id);
+      if (!element) {
+        return;
+      }
+      element.classList.toggle('active', active);
+      element.setAttribute('aria-pressed', active ? 'true' : 'false');
+      const toggle = element.closest('.view-mode-toggle, .run-mode-toggle');
+      if (toggle) {
+        syncModeToggleTrack(toggle);
+      }
+    }
+
+    function syncModeToggleTrack(toggle) {
+      const buttons = Array.from(toggle.querySelectorAll('.mode-toggle-button'));
+      const activeIndex = buttons.findIndex((button) => button.classList.contains('active'));
+      toggle.classList.toggle('toggle-track-end', activeIndex > 0);
+    }
+
+    function updateStickySummary() {
+      const payload = currentPayload();
+      const spikesEnabled = isRandomSpikeOverlayEnabled();
+      setText('stickyViewMode', requestViewMode === 'advanced' ? 'Advanced' : 'Basic');
+      setText('stickyScenario', getActiveScenarioLabel());
+      setText('stickyKey', payload.key || 'Missing subject');
+      setText('stickyRule', payload.rule || 'Missing limit');
+      setText(
+        'stickyRunMode',
+        requestRunMode === 'continuous'
+          ? continuousStream.running
+            ? 'Continuous live'
+            : 'Continuous'
+          : 'Single request'
+      );
+      if (requestRunMode === 'continuous' || continuousStream.running || continuousStream.sent > 0) {
+        const intervalMs = parseStreamIntervalMs();
+        setText('stickyInterval', intervalMs === null ? 'Invalid cadence' : `${intervalMs} ms${spikesEnabled ? ' + random spikes' : ''}`);
+      } else {
+        setText('stickyInterval', 'On demand');
+      }
+      setText('stickyLastDecision', lastDecisionSummary);
+    }
+
+    function setRequestViewMode(mode) {
+      requestViewMode = mode === 'advanced' ? 'advanced' : 'basic';
+      document.body.classList.toggle('mode-basic', requestViewMode === 'basic');
+      document.body.classList.toggle('mode-advanced', requestViewMode === 'advanced');
+      setToggleState('basicModeBtn', requestViewMode === 'basic');
+      setToggleState('advancedModeBtn', requestViewMode === 'advanced');
+      updateSidebarAvailability();
+      updateModeHint();
+      if (requestViewMode === 'basic' && isAdvancedSectionHash(window.location.hash)) {
+        window.history.replaceState(null, '', '#requests');
+        setActiveSidebarLink('#requests');
+      }
+      writeTextStorage(storageKeys.viewMode, requestViewMode);
+      updateStickySummary();
+    }
+
+    function loadRequestViewMode() {
+      return readTextStorage(storageKeys.viewMode, 'basic') === 'advanced' ? 'advanced' : 'basic';
+    }
+
+    function isAdvancedSectionHash(hash) {
+      return hash === '#observability' || hash === '#events' || hash === '#chaos';
+    }
+
+    function syncRequestViewModeForHash(hash) {
+      if (!isAdvancedSectionHash(hash)) {
+        return false;
+      }
+      if (requestViewMode !== 'advanced') {
+        setRequestViewMode('advanced');
+      }
+      return true;
+    }
+
+    function syncSidebarContextForHash(hash) {
+      if (hash !== '#overview') {
+        return;
+      }
+      const guideDrawer = document.getElementById('guideDrawer');
+      if (guideDrawer && !guideDrawer.open) {
+        guideDrawer.open = true;
+        saveDrawerStates();
+      }
+    }
+
+    function updateSidebarAvailability() {
+      document.querySelectorAll('.sidebar-link[data-mode="advanced"]').forEach((link) => {
+        const disabled = requestViewMode === 'basic';
+        link.classList.toggle('is-disabled', disabled);
+        link.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+        link.tabIndex = disabled ? -1 : 0;
+      });
+    }
+
+    function updateModeHint() {
+      const hint = document.getElementById('topbarModeHint');
+      if (!hint) {
+        return;
+      }
+      hint.textContent = requestViewMode === 'advanced'
+        ? 'Advanced shows the full operator workspace, including Monitoring, Events, and Chaos.'
+        : 'Basic keeps the app focused on checks. Switch to Advanced for Monitoring, Events, and Chaos.';
+    }
+
+    function updateRequestRunModeUI() {
+      const submitBtn = document.getElementById('submitBtn');
+      const stopBtn = document.getElementById('stopStreamBtn');
+      const streamSettings = document.getElementById('streamSettings');
+      const streamSummary = document.getElementById('streamSummary');
+      const runModeHint = document.getElementById('runModeHint');
+      const showContinuousControls = requestRunMode === 'continuous' || continuousStream.running;
+
+      setToggleState('singleModeBtn', requestRunMode === 'single');
+      setToggleState('continuousModeBtn', requestRunMode === 'continuous');
+
+      if (submitBtn) {
+        submitBtn.textContent = continuousStream.running
+          ? 'Streaming...'
+          : requestRunMode === 'continuous'
+            ? 'Start stream'
+            : 'Send once';
+      }
+
+      if (streamSettings) {
+        streamSettings.hidden = !showContinuousControls;
+      }
+
+      if (stopBtn) {
+        stopBtn.hidden = !showContinuousControls;
+      }
+
+      if (streamSummary) {
+        streamSummary.hidden = !showContinuousControls && continuousStream.sent === 0;
+      }
+
+      if (runModeHint) {
+        if (requestRunMode !== 'continuous' && !continuousStream.running) {
+          runModeHint.textContent = 'Choose Continuous to open cadence presets and the random spike overlay.';
+        } else if (isRandomSpikeOverlayEnabled()) {
+          runModeHint.textContent = 'Cadence controls are open below. Random spikes are enabled, so extra burst checks will be layered on top of the base stream.';
+        } else {
+          runModeHint.textContent = 'Cadence controls are open below. Turn on Add random spikes on top of the base stream to simulate bursty traffic and watch denied checks appear.';
+        }
+      }
+    }
+
+    function setRequestRunMode(mode) {
+      const nextMode = mode === 'continuous' ? 'continuous' : 'single';
+      if (continuousStream.running && nextMode === 'single') {
+        stopContinuousStream('Continuous stream stopped.');
+      }
+      requestRunMode = nextMode;
+      updateRequestRunModeUI();
+      renderValidation(validatePayload(currentPayload()).issues);
+      updateStickySummary();
+      saveFormState();
     }
 
     function currentPayload() {
@@ -1841,7 +1490,7 @@
     function parseRule(rule) {
       const value = String(rule || '').trim();
       if (!value) {
-        return { valid: false, kind: 'unknown', message: 'Rule is required.' };
+        return { valid: false, kind: 'unknown', message: 'Limit is required.' };
       }
 
       if (value.endsWith('rps')) {
@@ -1852,10 +1501,10 @@
             kind: 'token_bucket',
             rate: amount,
             capacity: amount * 2,
-            message: `Token bucket: refill ${amount} request(s) per second and allow short bursts.`
+            message: `Burst-friendly mode refills ${amount} request(s) per second and allows short spikes.`
           };
         }
-        return { valid: false, kind: 'token_bucket', message: 'Token bucket rules must be in the form 20rps.' };
+        return { valid: false, kind: 'token_bucket', message: 'Burst-friendly limits must use a format like 20rps.' };
       }
 
       if (value.includes('/')) {
@@ -1870,13 +1519,13 @@
             limit: amount,
             windowText,
             windowMs,
-            message: `Sliding window: allow up to ${amount} request(s) every ${windowText}.`
+            message: `Strict-window mode allows up to ${amount} request(s) every ${windowText}.`
           };
         }
-        return { valid: false, kind: 'sliding_window', message: 'Sliding window rules must be in the form 5/10s.' };
+        return { valid: false, kind: 'sliding_window', message: 'Strict-window limits must use a format like 5/10s.' };
       }
 
-      return { valid: false, kind: 'unknown', message: 'Rule format is not recognized. Use values like 20rps or 5/10s.' };
+      return { valid: false, kind: 'unknown', message: 'Limit format is not recognized. Use values like 20rps or 5/10s.' };
     }
 
     function getEffectiveAlgorithm(payload, parsed) {
@@ -1909,6 +1558,58 @@
       document.getElementById('builderWindowField').style.display = mode === 'SLIDING_WINDOW' ? 'grid' : 'none';
     }
 
+    function setNumericSliderValue(fieldId, value) {
+      const input = document.getElementById(fieldId);
+      const slider = document.getElementById(`${fieldId}Slider`);
+      if (!input) {
+        return;
+      }
+
+      const nextValue = String(value ?? '');
+      input.value = nextValue;
+
+      if (!slider || nextValue.trim() === '') {
+        return;
+      }
+
+      const numeric = Number(nextValue);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+
+      const min = Number(slider.min || 0);
+      const step = Number(slider.step || 1);
+      const defaultMax = Number(slider.dataset.defaultMax || slider.max || numeric);
+      const roundedValue = step > 0 ? Math.round(numeric / step) * step : numeric;
+      const boundedValue = Math.max(min, roundedValue);
+      slider.max = String(Math.max(defaultMax, boundedValue));
+      slider.value = String(boundedValue);
+    }
+
+    function handleNumericSliderInput(fieldId, callback) {
+      const slider = document.getElementById(`${fieldId}Slider`);
+      if (!slider) {
+        return;
+      }
+      setNumericSliderValue(fieldId, slider.value);
+      if (typeof callback === 'function') {
+        callback();
+      }
+    }
+
+    function handleNumericInput(fieldId, callback) {
+      const input = document.getElementById(fieldId);
+      if (!input) {
+        return;
+      }
+      if (input.value.trim() !== '') {
+        setNumericSliderValue(fieldId, input.value);
+      }
+      if (typeof callback === 'function') {
+        callback();
+      }
+    }
+
     function updateRuleFromBuilder() {
       updateBuilderVisibility();
 
@@ -1937,10 +1638,10 @@
 
       if (parsed.kind === 'token_bucket') {
         document.getElementById('builderMode').value = 'TOKEN_BUCKET';
-        document.getElementById('builderRate').value = String(parsed.rate);
+        setNumericSliderValue('builderRate', parsed.rate);
       } else if (parsed.kind === 'sliding_window') {
         document.getElementById('builderMode').value = 'SLIDING_WINDOW';
-        document.getElementById('builderLimit').value = String(parsed.limit);
+        setNumericSliderValue('builderLimit', parsed.limit);
         document.getElementById('builderWindow').value = parsed.windowText;
       }
 
@@ -1958,10 +1659,10 @@
       document.getElementById('key').value = preset.key;
       document.getElementById('rule').value = preset.rule;
       document.getElementById('algo').value = preset.algorithm;
-      document.getElementById('cost').value = preset.cost;
+      setNumericSliderValue('cost', preset.cost);
       document.getElementById('builderMode').value = preset.builderMode;
-      document.getElementById('builderRate').value = preset.builderRate;
-      document.getElementById('builderLimit').value = preset.builderLimit;
+      setNumericSliderValue('builderRate', preset.builderRate);
+      setNumericSliderValue('builderLimit', preset.builderLimit);
       document.getElementById('builderWindow').value = preset.builderWindow;
       setActiveScenario(name);
       updateBuilderVisibility();
@@ -1969,9 +1670,12 @@
     }
 
     function setActiveScenario(name) {
+      activeScenarioName = name;
       document.querySelectorAll('[data-scenario]').forEach((node) => {
         node.classList.toggle('active', node.dataset.scenario === name);
       });
+      updateStickySummary();
+      saveFormState();
     }
 
     function validatePayload(payload) {
@@ -1979,7 +1683,7 @@
       const parsed = parseRule(payload.rule);
 
       if (!payload.key) {
-        issues.push('Key is required.');
+        issues.push('Subject is required.');
       }
 
       if (!parsed.valid) {
@@ -1987,67 +1691,207 @@
       }
 
       if (!Number.isFinite(payload.cost) || payload.cost <= 0 || !Number.isInteger(payload.cost)) {
-        issues.push('Cost must be a positive whole number.');
+        issues.push('Request weight must be a positive whole number.');
       }
 
       if (parsed.valid && payload.algorithm !== 'AUTO') {
         if (payload.algorithm === 'TOKEN_BUCKET' && parsed.kind !== 'token_bucket') {
-          issues.push('Algorithm TOKEN_BUCKET requires a token bucket rule such as 20rps.');
+          issues.push('Burst-friendly strategy requires a burst-friendly limit such as 20rps.');
         }
         if (payload.algorithm === 'SLIDING_WINDOW' && parsed.kind !== 'sliding_window') {
-          issues.push('Algorithm SLIDING_WINDOW requires a sliding window rule such as 5/10s.');
+          issues.push('Strict-window strategy requires a strict-window limit such as 5/10s.');
         }
       }
 
       if (parsed.valid && parsed.kind === 'sliding_window' && Number.isInteger(payload.cost) && payload.cost > parsed.limit) {
-        issues.push(`Cost cannot exceed the sliding window limit of ${parsed.limit}.`);
+        issues.push(`Request weight cannot exceed the strict-window limit of ${parsed.limit}.`);
       }
 
       if (parsed.valid && parsed.kind === 'token_bucket' && Number.isInteger(payload.cost) && payload.cost > parsed.capacity) {
-        issues.push(`Cost cannot exceed the default token bucket burst capacity of ${parsed.capacity}.`);
+        issues.push(`Request weight cannot exceed the default burst capacity of ${parsed.capacity}.`);
       }
 
       if (parsed.valid && parsed.kind === 'sliding_window' && parsed.windowMs === null) {
-        issues.push('Sliding window durations must use ms, s, m, or h units.');
+        issues.push('Strict-window durations must use ms, s, m, or h units.');
       }
 
       return { issues, parsed };
     }
 
+    function setControlDisabled(button, disabled) {
+      if (!button) {
+        return;
+      }
+
+      button.disabled = disabled;
+      button.style.opacity = disabled ? '0.65' : '1';
+      button.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    }
+
+    function syncRequestControls(hasIssues) {
+      setControlDisabled(document.getElementById('submitBtn'), hasIssues || continuousStream.running);
+      setControlDisabled(document.getElementById('stopStreamBtn'), !continuousStream.running);
+      updateRequestRunModeUI();
+    }
+
+    function parseStreamIntervalMs() {
+      const value = Number(document.getElementById('streamIntervalMs').value || 200);
+      if (!Number.isFinite(value) || value < 50) {
+        return null;
+      }
+      return Math.round(value);
+    }
+
+    function applyStreamIntervalPreset(value) {
+      setNumericSliderValue('streamIntervalMs', value);
+      handleStreamIntervalInput();
+    }
+
+    function handleStreamIntervalInput() {
+      updateContinuousStreamSummary();
+      updateStickySummary();
+      saveFormState();
+    }
+
+    function handleRandomSpikeToggle() {
+      updateRandomSpikeHint();
+      updateContinuousStreamSummary();
+      updateStickySummary();
+      saveFormState();
+    }
+
+    function handleRandomSpikeProfileChange() {
+      updateRandomSpikeHint();
+      updateContinuousStreamSummary();
+      updateStickySummary();
+      saveFormState();
+    }
+
+    function randomInt(min, max) {
+      const lower = Math.ceil(min);
+      const upper = Math.floor(max);
+      return Math.floor(Math.random() * (upper - lower + 1)) + lower;
+    }
+
+    function waitForMs(ms) {
+      return new Promise((resolve) => {
+        window.setTimeout(resolve, ms);
+      });
+    }
+
+    function planRandomSpikeBurst() {
+      if (!isRandomSpikeOverlayEnabled()) {
+        return null;
+      }
+
+      const profile = getRandomSpikeProfile();
+      if (Math.random() >= profile.chance) {
+        return null;
+      }
+
+      return {
+        profile,
+        size: randomInt(profile.minBurst, profile.maxBurst)
+      };
+    }
+
+    function maybeRefreshContinuousObservability() {
+      if (continuousStream.sent - continuousStream.lastObservabilityRefreshSent < 5) {
+        return;
+      }
+      continuousStream.lastObservabilityRefreshSent = continuousStream.sent;
+      loadObservability();
+    }
+
+    function recordContinuousStreamResult(result, options = {}) {
+      continuousStream.sent += 1;
+      if (options.isSpike) {
+        continuousStream.spikeRequests += 1;
+      }
+
+      if (result.networkError || result.statusCode >= 400) {
+        continuousStream.errors += 1;
+      } else if (result.json.allowed === true) {
+        continuousStream.allowed += 1;
+      } else if (result.json.allowed === false) {
+        continuousStream.denied += 1;
+      } else {
+        continuousStream.errors += 1;
+      }
+
+      updateContinuousStreamSummary();
+      maybeRefreshContinuousObservability();
+    }
+
+    function summarizeContinuousStream() {
+      const parts = [
+        `${continuousStream.sent} sent`,
+        `${continuousStream.allowed} allowed`,
+        `${continuousStream.denied} denied`,
+        `${continuousStream.errors} errors`
+      ];
+
+      if (continuousStream.spikeBursts > 0 || continuousStream.spikeRequests > 0) {
+        parts.push(`${formatCountLabel(continuousStream.spikeBursts, 'burst')} (+${formatCountLabel(continuousStream.spikeRequests, 'spike check')})`);
+      }
+
+      return parts.join(' • ');
+    }
+
+    function updateContinuousStreamSummary(message) {
+      const summary = document.getElementById('streamSummary');
+      if (!summary) {
+        return;
+      }
+
+      if (continuousStream.running) {
+        const intervalMs = parseStreamIntervalMs();
+        const cadenceText = intervalMs === null ? 'invalid base cadence' : `${intervalMs} ms base cadence`;
+        const spikeText = isRandomSpikeOverlayEnabled() ? ` • ${getRandomSpikeProfile().label.toLowerCase()} armed` : '';
+        summary.textContent = `${summarizeContinuousStream()} • ${cadenceText}${spikeText}`;
+        updateStickySummary();
+        return;
+      }
+
+      if (message && continuousStream.sent > 0) {
+        summary.textContent = `${message} Last run: ${summarizeContinuousStream()}.`;
+        updateStickySummary();
+        return;
+      }
+
+      summary.textContent = message || 'Continuous mode is idle.';
+      updateStickySummary();
+    }
+
     function renderValidation(issues) {
       const box = document.getElementById('validationBox');
       const list = document.getElementById('validationList');
-      const submitBtn = document.getElementById('submitBtn');
 
       if (!issues.length) {
         box.classList.remove('visible');
         list.innerHTML = '';
-        submitBtn.disabled = false;
-        submitBtn.style.opacity = '1';
-        submitBtn.style.cursor = 'pointer';
+        syncRequestControls(false);
         return;
       }
 
       list.innerHTML = issues.map((issue) => `<li>${escapeHTML(issue)}</li>`).join('');
       box.classList.add('visible');
-      submitBtn.disabled = true;
-      submitBtn.style.opacity = '0.65';
-      submitBtn.style.cursor = 'not-allowed';
+      syncRequestControls(true);
     }
 
     function renderRedisKey(payload, parsed) {
       const effectiveAlgorithm = getEffectiveAlgorithm(payload, parsed);
       const redisKey = computeRedisKey(payload.namespace, payload.key, effectiveAlgorithm);
       const suffixMeaning = effectiveAlgorithm === 'TOKEN_BUCKET'
-        ? 'The suffix <code>tb</code> indicates token bucket state.'
+        ? 'The suffix <code>tb</code> indicates burst-friendly state.'
         : effectiveAlgorithm === 'SLIDING_WINDOW'
-          ? 'The suffix <code>sw</code> indicates sliding-window state.'
-          : 'The suffix becomes concrete once the request resolves to a valid algorithm.';
+          ? 'The suffix <code>sw</code> indicates strict-window state.'
+          : 'The suffix becomes concrete once the request resolves to a valid strategy.';
 
       document.getElementById('redisKeyPreview').innerHTML =
-        `<strong>Redis key preview</strong>` +
+        `<strong>Computed Redis key</strong>` +
         `<div><code>${escapeHTML(redisKey)}</code></div>` +
-        `<div class="timeline-note">The hash tag keeps all state for this namespace and key on the same Redis cluster slot. ${suffixMeaning}</div>`;
+        `<div class="timeline-note">The hash tag keeps all state for this traffic group and subject on the same Redis cluster slot. ${suffixMeaning}</div>`;
     }
 
     function normalizeSimulator(parsed) {
@@ -2098,7 +1942,7 @@
         simulator.innerHTML = `
           <div class="sim-card">
             <strong>Simulation unavailable</strong>
-            <div class="subtle">Enter a valid rule to compare the token bucket and sliding-window behaviors.</div>
+            <div class="subtle">Enter a valid limit to compare burst-friendly and strict-window behavior.</div>
           </div>
         `;
         return;
@@ -2114,7 +1958,7 @@
 
       simulator.innerHTML = `
         <div class="sim-card">
-          <strong>Token bucket lens</strong>
+          <strong>Burst-friendly lens</strong>
           <div class="subtle">${normalized.tokenBucket.exact ? 'Exact interpretation for this rule.' : 'Approximate comparison based on the same overall traffic budget.'}</div>
           <div>Refill rate: <code>${normalized.tokenBucket.rate === null ? 'n/a' : `${normalized.tokenBucket.rate.toFixed(normalized.tokenBucket.rate % 1 === 0 ? 0 : 2)}rps`}</code></div>
           <div>Burst capacity: <code>${normalized.tokenBucket.capacity.toFixed(0)}</code> unit(s)</div>
@@ -2122,7 +1966,7 @@
           <div class="timeline-note">${tokenSteady}</div>
         </div>
         <div class="sim-card">
-          <strong>Sliding-window lens</strong>
+          <strong>Strict-window lens</strong>
           <div class="subtle">${normalized.slidingWindow.exact ? 'Exact interpretation for this rule.' : 'Closest strict-window comparison for the same request.'}</div>
           <div>Window rule: <code>${normalized.slidingWindow.limit}/${escapeHTML(normalized.slidingWindow.windowText)}</code></div>
           <div>Current request cost: <code>${cost}</code> ${slidingFits ? 'fits inside the configured limit when room remains in the window.' : 'exceeds the window limit and would be rejected.'}</div>
@@ -2157,44 +2001,62 @@
       }
     }
 
+    function handleRequestSubmit(event) {
+      if (event) {
+        event.preventDefault();
+      }
+
+      if (requestRunMode === 'continuous') {
+        startContinuousStream();
+        return;
+      }
+
+      send();
+    }
+
     function updatePreview() {
       const payload = currentPayload();
       const validation = validatePayload(payload);
       const parsed = validation.parsed;
       const effectiveAlgorithm = getEffectiveAlgorithm(payload, parsed);
-      const keyText = payload.key || '(missing key)';
+      const keyText = payload.key || '(missing subject)';
       const namespaceText = payload.namespace || 'default';
-      const ruleText = payload.rule || '(missing rule)';
+      const ruleText = payload.rule || '(missing limit)';
       const autoText = payload.algorithm === 'AUTO'
-        ? 'AUTO derives the algorithm from the rule format.'
-        : `The request explicitly specifies <code>${escapeHTML(payload.algorithm)}</code>.`;
+        ? 'Auto-detect will choose the strategy from the raw limit format.'
+        : `The request explicitly specifies <code>${escapeHTML(formatStrategyName(payload.algorithm))}</code>.`;
 
       document.getElementById('preview').innerHTML =
-        `Traffic for <code>${escapeHTML(keyText)}</code> in namespace <code>${escapeHTML(namespaceText)}</code> will be checked against <code>${escapeHTML(ruleText)}</code>. ` +
+        `Traffic for subject <code>${escapeHTML(keyText)}</code> in group <code>${escapeHTML(namespaceText)}</code> will be checked against <code>${escapeHTML(ruleText)}</code>. ` +
         `${escapeHTML(parsed.message)} ` +
         `${autoText} ` +
-        `Each allowed request will spend <code>${Number.isFinite(payload.cost) ? payload.cost : 1}</code> unit${payload.cost === 1 ? '' : 's'}.`;
+        `Each allowed request will spend <code>${Number.isFinite(payload.cost) ? payload.cost : 1}</code> budget unit${payload.cost === 1 ? '' : 's'}.`;
 
-      document.getElementById('effectiveAlgoPill').textContent = `Effective algorithm: ${effectiveAlgorithm}`;
+      document.getElementById('effectiveAlgoPill').textContent = `Effective strategy: ${formatStrategyName(effectiveAlgorithm)}`;
       renderRedisKey(payload, parsed);
       renderSimulator(payload, parsed);
       updateExamples();
       renderValidation(validation.issues);
+      updateStickySummary();
+      saveFormState();
+      if (continuousStream.running && validation.issues.length) {
+        stopContinuousStream('Continuous stream stopped because the request is no longer valid.');
+      }
     }
 
     function explainHTTPError(errorText) {
       const lower = String(errorText || '').toLowerCase();
       if (lower.includes('algorithm') && lower.includes('does not match')) {
-        return 'The request specified an algorithm that does not match the rule format. Use AUTO or align the algorithm with the rule.';
+        return 'The selected strategy does not match the raw limit format. Use auto-detect or align the strategy with the limit.';
       }
       if (lower.includes('cost') && lower.includes('exceeds')) {
-        return 'The request cost is larger than the configured budget for this rule. Reduce the cost or increase the limit.';
+        return 'The request weight is larger than the configured budget for this limit. Lower the weight or increase the limit.';
       }
       if (lower.includes('key and rule required')) {
-        return 'The service requires both a key and a rule before it can evaluate the request.';
+        return 'The service requires both a subject and a limit before it can evaluate the request.';
       }
       if (lower.includes('unsupported algorithm')) {
-        return 'The selected algorithm is not supported by the service.';
+        return 'The selected strategy is not supported by the service.';
       }
       return 'The gateway returned an error before a rate-limit decision could be completed.';
     }
@@ -2205,7 +2067,7 @@
       }
 
       if (json.allowed === true) {
-        return `Request allowed. ${json.remaining ?? 0} unit(s) remain for key ${payload.key || '(unknown)'} under ${json.algorithm_used || getEffectiveAlgorithm(payload, parsed)}.`;
+        return `Request allowed. ${json.remaining ?? 0} budget unit(s) remain for subject ${payload.key || '(unknown)'} under ${formatStrategyName(json.algorithm_used || getEffectiveAlgorithm(payload, parsed))}.`;
       }
 
       if (json.allowed === false) {
@@ -2215,6 +2077,80 @@
       return 'The service returned a response that could not be interpreted automatically.';
     }
 
+    function buildResultVerdict(json, httpStatus) {
+      if (httpStatus >= 400) {
+        return 'Gateway error';
+      }
+      if (json.allowed === true) {
+        return 'Allowed';
+      }
+      if (json.allowed === false) {
+        return 'Denied';
+      }
+      return 'Response received';
+    }
+
+    function buildResultMeta(payload, parsed, json, httpStatus) {
+      if (httpStatus >= 400) {
+        return `HTTP ${httpStatus} • Check the request values or gateway availability.`;
+      }
+
+      const strategy = formatStrategyName(json.algorithm_used || getEffectiveAlgorithm(payload, parsed));
+      const weight = Number.isFinite(payload.cost) ? payload.cost : 1;
+      if (json.allowed === true) {
+        return `${json.remaining ?? 0} remaining • ${strategy} • weight ${weight}`;
+      }
+      if (json.allowed === false) {
+        return `Retry in ${json.retry_after_ms ?? 0} ms • ${strategy} • weight ${weight}`;
+      }
+      return 'Review the full response for more detail.';
+    }
+
+    function setResultTone(tone) {
+      const panel = document.getElementById('result');
+      const verdict = document.getElementById('resultVerdict');
+      lastDecisionTone = tone || 'idle';
+      panel.classList.remove('result-allowed', 'result-denied', 'result-error', 'result-pending');
+      verdict.classList.remove('verdict-allowed', 'verdict-denied', 'verdict-error', 'verdict-pending', 'verdict-idle');
+      updateStickyDecisionTone();
+      if (tone === 'allowed') {
+        panel.classList.add('result-allowed');
+        verdict.classList.add('verdict-allowed');
+        return;
+      }
+      if (tone === 'denied') {
+        panel.classList.add('result-denied');
+        verdict.classList.add('verdict-denied');
+        return;
+      }
+      if (tone === 'error') {
+        panel.classList.add('result-error');
+        verdict.classList.add('verdict-error');
+        return;
+      }
+      if (tone === 'pending') {
+        panel.classList.add('result-pending');
+        verdict.classList.add('verdict-pending');
+        return;
+      }
+      verdict.classList.add('verdict-idle');
+    }
+
+    function pulseResultPanel() {
+      const panel = document.getElementById('result');
+      panel.classList.remove('result-updated');
+      void panel.offsetWidth;
+      panel.classList.add('result-updated');
+    }
+
+    function setPendingResultState(label) {
+      setText('resultVerdict', label || 'Checking…');
+      setText('resultMeta', 'Sending the current check to the gateway.');
+      setText('decisionHeadline', 'Waiting for a decision...');
+      setText('nextStepHint', 'Hold on while the gateway evaluates the current request.');
+      setResultTone('pending');
+    }
+
     function explainDecision(payload, parsed, json, httpStatus) {
       if (httpStatus >= 400) {
         return explainHTTPError(json.error || '');
@@ -2222,20 +2158,20 @@
 
       if (json.allowed === true) {
         if (parsed.kind === 'token_bucket') {
-          return `The token bucket accepted this request because the current cost of ${payload.cost} fits within the available tokens. The bucket refills at ${parsed.rate}/s with an estimated burst capacity of ${parsed.capacity}.`;
+          return `Burst-friendly mode accepted this request because the current weight of ${payload.cost} fits within the available tokens. The bucket refills at ${parsed.rate}/s with an estimated burst capacity of ${parsed.capacity}.`;
         }
         if (parsed.kind === 'sliding_window') {
-          return `The sliding window accepted this request because at least ${payload.cost} slot${payload.cost === 1 ? '' : 's'} remained within the last ${parsed.windowText}.`;
+          return `Strict-window mode accepted this request because at least ${payload.cost} slot${payload.cost === 1 ? '' : 's'} remained within the last ${parsed.windowText}.`;
         }
         return 'The request satisfied the current limit and was accepted.';
       }
 
       if (json.allowed === false) {
         if (parsed.kind === 'token_bucket') {
-          return `The token bucket did not have enough tokens available for a cost of ${payload.cost}. It refills at ${parsed.rate}/s and typically allows bursts up to ${parsed.capacity}. The reported retry delay estimates when enough tokens should become available again.`;
+          return `Burst-friendly mode did not have enough tokens available for a request weight of ${payload.cost}. It refills at ${parsed.rate}/s and typically allows bursts up to ${parsed.capacity}. The reported retry delay estimates when enough tokens should become available again.`;
         }
         if (parsed.kind === 'sliding_window') {
-          return `The sliding window already contains as many recent requests as the rule allows. This request needs ${payload.cost} slot${payload.cost === 1 ? '' : 's'} inside the last ${parsed.windowText}, so it must wait until older requests fall out of the window.`;
+          return `Strict-window mode already contains as many recent requests as the limit allows. This request needs ${payload.cost} slot${payload.cost === 1 ? '' : 's'} inside the last ${parsed.windowText}, so it must wait until older requests fall out of the window.`;
         }
         return 'The request was denied because the limit had been exhausted.';
       }
@@ -2243,7 +2179,39 @@
       return 'The response did not include enough detail to generate a fuller explanation.';
     }
 
+    function buildDecisionHeadline(payload, parsed, json, httpStatus) {
+      if (httpStatus >= 400) {
+        return `Request blocked before evaluation (HTTP ${httpStatus}).`;
+      }
+      if (json.allowed === true) {
+        return `Allowed with ${json.remaining ?? 0} budget unit(s) remaining.`;
+      }
+      if (json.allowed === false) {
+        return `Denied. Suggested retry in ${json.retry_after_ms ?? 0} ms.`;
+      }
+      return 'Response received, but the decision is unclear.';
+    }
+
+    function suggestNextStep(payload, parsed, json, httpStatus) {
+      if (httpStatus >= 400) {
+        return 'Check the subject, limit format, and strategy selection, then try again.';
+      }
+      if (json.allowed === true) {
+        return requestRunMode === 'continuous'
+          ? 'Keep the stream running or raise the request weight to find the breaking point.'
+          : 'Send another check or switch to continuous mode to see when the limit starts rejecting traffic.';
+      }
+      if (json.allowed === false) {
+        return `Wait about ${json.retry_after_ms ?? 0} ms, lower the request weight, or loosen the limit before retrying.`;
+      }
+      return 'Inspect the raw response below for more detail.';
+    }
+
     function renderDecisionExplanation(payload, parsed, json, httpStatus) {
+      setText('resultVerdict', buildResultVerdict(json, httpStatus));
+      setText('resultMeta', buildResultMeta(payload, parsed, json, httpStatus));
+      setText('decisionHeadline', buildDecisionHeadline(payload, parsed, json, httpStatus));
+      setText('nextStepHint', suggestNextStep(payload, parsed, json, httpStatus));
       document.getElementById('responseSummary').textContent = interpretResponse(payload, parsed, json, httpStatus);
       document.getElementById('denialAnalysis').innerHTML =
         `<strong>Why this result occurred</strong>` +
@@ -2254,6 +2222,7 @@
       const table = document.getElementById('historyTable');
       const body = document.getElementById('historyBody');
       const empty = document.getElementById('historyEmpty');
+      setBuildUtilityVisibility();
 
       if (!recentHistory.length) {
         table.style.display = 'none';
@@ -2341,10 +2310,12 @@
       const deniedStats = computeStats(deniedPoints);
       const totalLatest = allowedStats.latest + deniedStats.latest;
       const ratio = totalLatest > 0 ? (deniedStats.latest / totalLatest) * 100 : 0;
+      const ratioText = `${ratio.toFixed(1)}%`;
 
       setText('allowedRateLatest', formatRate(allowedStats.latest));
       setText('deniedRateLatest', formatRate(deniedStats.latest));
-      setText('denyRatio', `${ratio.toFixed(1)}%`);
+      setText('denyRatio', ratioText);
+      setText('decisionHealthRatioValue', ratioText);
     }
 
     function clamp(value, min, max) {
@@ -2370,7 +2341,7 @@
       const activeSeries = (series || []).filter((item) => item && item.points && item.points.length);
 
       if (!activeSeries.length) {
-        container.innerHTML = `<div class="chart-empty">${escapeHTML(options.emptyMessage)}</div>`;
+        container.innerHTML = `<div class="chart-empty">${buildEmptyState(options.emptyMessage)}</div>`;
         meta.textContent = options.emptyMeta || 'No recent samples are available yet.';
         return;
       }
@@ -2406,21 +2377,21 @@
 
       container.innerHTML = `
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
-          <rect x="0" y="0" width="${width}" height="${height}" fill="#fbfcfd"></rect>
+          <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"></rect>
           ${yTicks.map((tick) => `
             <g>
-              <line x1="${padding.left}" y1="${yFor(tick)}" x2="${width - padding.right}" y2="${yFor(tick)}" stroke="#edf1f4" stroke-width="1"></line>
-              <text x="${padding.left - 10}" y="${yFor(tick) + 4}" text-anchor="end" fill="#5f6c76" font-size="11">${escapeHTML(options.valueFormatter(tick))}</text>
+              <line x1="${padding.left}" y1="${yFor(tick)}" x2="${width - padding.right}" y2="${yFor(tick)}" stroke="#e2e8f0" stroke-width="1"></line>
+              <text x="${padding.left - 10}" y="${yFor(tick) + 4}" text-anchor="end" fill="#7d899b" font-size="11">${escapeHTML(options.valueFormatter(tick))}</text>
             </g>
           `).join('')}
           ${xTicks.map((tick) => `
             <g>
-              <line x1="${xFor(tick)}" y1="${height - padding.bottom}" x2="${xFor(tick)}" y2="${height - padding.bottom + 6}" stroke="#d8e0e6" stroke-width="1"></line>
-              <text x="${xFor(tick)}" y="${height - 10}" text-anchor="middle" fill="#5f6c76" font-size="11">${escapeHTML(formatTimeLabel(tick))}</text>
+              <line x1="${xFor(tick)}" y1="${height - padding.bottom}" x2="${xFor(tick)}" y2="${height - padding.bottom + 6}" stroke="#ccd6e2" stroke-width="1"></line>
+              <text x="${xFor(tick)}" y="${height - 10}" text-anchor="middle" fill="#7d899b" font-size="11">${escapeHTML(formatTimeLabel(tick))}</text>
             </g>
           `).join('')}
-          <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" stroke="#d8e0e6" stroke-width="1"></line>
-          <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" stroke="#d8e0e6" stroke-width="1"></line>
+          <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" stroke="#ccd6e2" stroke-width="1"></line>
+          <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" stroke="#ccd6e2" stroke-width="1"></line>
           ${seriesState.map((item) => {
             const pointsText = item.coords.map((point) => `${point.x},${point.y}`).join(' ');
             const area = `${padding.left},${height - padding.bottom} ${pointsText} ${width - padding.right},${height - padding.bottom}`;
@@ -2437,7 +2408,7 @@
               </polyline>
             `;
           }).join('')}
-          <line class="chart-crosshair" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" stroke="#b8c6cf" stroke-width="1" stroke-dasharray="4 4" style="display:none;"></line>
+          <line class="chart-crosshair" x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${height - padding.bottom}" stroke="#aebdcd" stroke-width="1" stroke-dasharray="4 4" style="display:none;"></line>
           ${seriesState.map((item, index) => `
             <circle class="chart-marker marker-${index}" r="4.5" fill="${item.color}" stroke="#ffffff" stroke-width="2" cx="${padding.left}" cy="${padding.top}" style="display:none;"></circle>
           `).join('')}
@@ -2519,8 +2490,8 @@
       const container = document.getElementById('requestTimelineChart');
       const meta = document.getElementById('requestTimelineMeta');
       if (!recentHistory.length) {
-        container.innerHTML = '<div class="chart-empty">No local requests yet. Submit a request to start the timeline.</div>';
-        meta.textContent = 'No local requests have been submitted from this page yet.';
+        container.innerHTML = `<div class="chart-empty">${buildEmptyState('No local checks yet. Run one to start the timeline.')}</div>`;
+        meta.textContent = 'No local checks have been submitted from this page yet.';
         return;
       }
 
@@ -2551,7 +2522,7 @@
 
       function colorFor(entry) {
         if (String(entry.decision).startsWith('HTTP')) {
-          return '#a62b2b';
+          return '#a25f6e';
         }
         if (entry.decision === 'denied') {
           return getComputedStyle(document.documentElement).getPropertyValue('--amber').trim();
@@ -2571,20 +2542,20 @@
 
       container.innerHTML = `
         <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
-          <rect x="0" y="0" width="${width}" height="${height}" fill="#fbfcfd"></rect>
-          ${Object.values(lanes).map((y) => `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="#edf1f4" stroke-width="1"></line>`).join('')}
-          <text x="${padding.left - 12}" y="${lanes.allowed + 4}" text-anchor="end" fill="#5f6c76" font-size="11">Allowed</text>
-          <text x="${padding.left - 12}" y="${lanes.denied + 4}" text-anchor="end" fill="#5f6c76" font-size="11">Denied</text>
-          <text x="${padding.left - 12}" y="${lanes.error + 4}" text-anchor="end" fill="#5f6c76" font-size="11">HTTP error</text>
+          <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"></rect>
+          ${Object.values(lanes).map((y) => `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="#e2e8f0" stroke-width="1"></line>`).join('')}
+          <text x="${padding.left - 12}" y="${lanes.allowed + 4}" text-anchor="end" fill="#7d899b" font-size="11">Allowed</text>
+          <text x="${padding.left - 12}" y="${lanes.denied + 4}" text-anchor="end" fill="#7d899b" font-size="11">Denied</text>
+          <text x="${padding.left - 12}" y="${lanes.error + 4}" text-anchor="end" fill="#7d899b" font-size="11">HTTP error</text>
           ${xTicks.map((tick) => `
             <g>
-              <line x1="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y1="${height - padding.bottom}" x2="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y2="${height - padding.bottom + 6}" stroke="#d8e0e6" stroke-width="1"></line>
-              <text x="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y="${height - 10}" text-anchor="middle" fill="#5f6c76" font-size="11">${escapeHTML(formatLocalTime(tick))}</text>
+              <line x1="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y1="${height - padding.bottom}" x2="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y2="${height - padding.bottom + 6}" stroke="#ccd6e2" stroke-width="1"></line>
+              <text x="${padding.left + ((tick - minTs) / spanTs) * plotWidth}" y="${height - 10}" text-anchor="middle" fill="#7d899b" font-size="11">${escapeHTML(formatLocalTime(tick))}</text>
             </g>
           `).join('')}
-          <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" stroke="#d8e0e6" stroke-width="1"></line>
+          <line x1="${padding.left}" y1="${height - padding.bottom}" x2="${width - padding.right}" y2="${height - padding.bottom}" stroke="#ccd6e2" stroke-width="1"></line>
           ${points.map((point) => `<circle class="timeline-dot" cx="${point.x}" cy="${point.y}" r="6" fill="${point.color}" stroke="#ffffff" stroke-width="2"></circle>`).join('')}
-          <circle class="timeline-active" cx="${padding.left}" cy="${lanes.allowed}" r="8" fill="none" stroke="#1f2933" stroke-width="2" style="display:none;"></circle>
+          <circle class="timeline-active" cx="${padding.left}" cy="${lanes.allowed}" r="8" fill="none" stroke="#8da0b7" stroke-width="2" style="display:none;"></circle>
           <rect class="chart-overlay" x="${padding.left}" y="${padding.top}" width="${plotWidth}" height="${plotHeight}" fill="transparent"></rect>
         </svg>
         <div class="chart-tooltip" aria-live="polite"></div>
@@ -2593,7 +2564,7 @@
       const allowedCount = entries.filter((entry) => entry.decision === 'allowed').length;
       const deniedCount = entries.filter((entry) => entry.decision === 'denied').length;
       const errorCount = entries.filter((entry) => String(entry.decision).startsWith('HTTP')).length;
-      meta.textContent = `${entries.length} local request(s) shown. Allowed: ${allowedCount}. Denied: ${deniedCount}. HTTP errors: ${errorCount}.`;
+      meta.textContent = `${entries.length} local check(s) shown. Allowed: ${allowedCount}. Denied: ${deniedCount}. HTTP errors: ${errorCount}.`;
 
       const overlay = container.querySelector('.chart-overlay');
       const tooltip = container.querySelector('.chart-tooltip');
@@ -2625,8 +2596,8 @@
         tooltip.innerHTML = `
           <strong>${escapeHTML(nearest.time)}</strong>
           <div class="tooltip-row"><span>Decision</span><span>${escapeHTML(nearest.decision)}</span></div>
-          <div class="tooltip-row"><span>Key</span><span>${escapeHTML(nearest.key)}</span></div>
-          <div class="tooltip-row"><span>Rule</span><span>${escapeHTML(nearest.rule)}</span></div>
+          <div class="tooltip-row"><span>Subject</span><span>${escapeHTML(nearest.key)}</span></div>
+          <div class="tooltip-row"><span>Limit</span><span>${escapeHTML(nearest.rule)}</span></div>
           <div class="tooltip-row"><span>Remaining</span><span>${escapeHTML(String(nearest.remaining))}</span></div>
         `;
         tooltip.classList.add('visible');
@@ -2645,26 +2616,14 @@
       container.addEventListener('mouseleave', hideTooltip);
     }
 
-    async function send(event) {
-      if (event) {
-        event.preventDefault();
-      }
-
+    async function performAllowRequest(payload, parsed, options = {}) {
       const status = document.getElementById('status');
       const resultBadge = document.getElementById('resultBadge');
       const output = document.getElementById('out');
-      const payload = currentPayload();
-      const validation = validatePayload(payload);
-
-      renderValidation(validation.issues);
-      if (validation.issues.length) {
-        status.textContent = 'Resolve the validation items before submitting the request.';
-        return;
-      }
-
-      status.textContent = 'Sending request...';
+      status.textContent = options.pendingText || 'Sending check...';
       resultBadge.className = 'badge';
-      resultBadge.textContent = 'Waiting for response';
+      resultBadge.textContent = options.pendingBadgeText || 'Checking';
+      setPendingResultState(options.pendingBadgeText || 'Checking…');
 
       try {
         const res = await fetch('/api/allow', {
@@ -2675,32 +2634,197 @@
 
         const json = await res.json();
         output.textContent = JSON.stringify(json, null, 2);
-        renderDecisionExplanation(payload, validation.parsed, json, res.status);
+        renderDecisionExplanation(payload, parsed, json, res.status);
         addHistory(payload, json, res.status);
 
         if (res.ok && json.allowed === true) {
           resultBadge.className = 'badge allowed';
           resultBadge.textContent = 'Allowed';
           status.textContent = `Allowed with ${json.remaining ?? 'unknown'} unit(s) remaining.`;
+          setLastDecisionSummary(`Allowed • ${json.remaining ?? 'unknown'} remaining`);
+          setResultTone('allowed');
         } else if (res.ok && json.allowed === false) {
           resultBadge.className = 'badge denied';
           resultBadge.textContent = 'Denied';
           status.textContent = `Denied. Retry after ${json.retry_after_ms ?? 0} ms.`;
+          setLastDecisionSummary(`Denied • retry in ${json.retry_after_ms ?? 0} ms`);
+          setResultTone('denied');
         } else {
           resultBadge.className = 'badge denied';
           resultBadge.textContent = `HTTP ${res.status}`;
           status.textContent = 'The service returned an error.';
+          setLastDecisionSummary(`HTTP ${res.status}`);
+          setResultTone('error');
         }
+        pulseResultPanel();
+
+        if (options.refreshObservability !== false) {
+          loadObservability();
+        }
+        return { statusCode: res.status, json, networkError: false };
       } catch (err) {
         const payloadError = { error: String(err) };
         resultBadge.className = 'badge denied';
         resultBadge.textContent = 'Network error';
         status.textContent = 'The request did not reach the gateway.';
-        renderDecisionExplanation(payload, validation.parsed, payloadError, 502);
+        renderDecisionExplanation(payload, parsed, payloadError, 502);
         output.textContent = JSON.stringify(payloadError, null, 2);
+        setLastDecisionSummary('Network error');
+        setResultTone('error');
+        pulseResultPanel();
+        if (options.refreshObservability !== false) {
+          loadObservability();
+        }
+        return { statusCode: 502, json: payloadError, networkError: true };
+      }
+    }
+
+    async function send(event) {
+      if (event) {
+        event.preventDefault();
       }
 
-      loadObservability();
+      const status = document.getElementById('status');
+      const payload = currentPayload();
+      const validation = validatePayload(payload);
+
+      renderValidation(validation.issues);
+      if (validation.issues.length) {
+        status.textContent = 'Resolve the validation items before submitting the request.';
+        setText('resultVerdict', 'Fix the form');
+        setText('resultMeta', 'Resolve the validation items before sending another check.');
+        setText('decisionHeadline', 'Request blocked locally.');
+        setText('nextStepHint', 'Update the form values above, then send the check again.');
+        setResultTone('error');
+        return;
+      }
+
+      await performAllowRequest(payload, validation.parsed);
+    }
+
+    async function runContinuousStreamIteration() {
+      if (!continuousStream.running) {
+        return;
+      }
+
+      const cycleStartedAt = window.performance?.now?.() ?? Date.now();
+
+      const payload = currentPayload();
+      const validation = validatePayload(payload);
+      renderValidation(validation.issues);
+
+      if (validation.issues.length) {
+        stopContinuousStream('Continuous stream stopped because the request is no longer valid.');
+        return;
+      }
+
+      const intervalMs = parseStreamIntervalMs();
+      if (intervalMs === null) {
+        stopContinuousStream('Continuous stream stopped because the interval must be at least 50 ms.');
+        return;
+      }
+
+      const result = await performAllowRequest(payload, validation.parsed, {
+        pendingText: `Streaming request ${continuousStream.sent + 1}...`,
+        pendingBadgeText: 'Streaming',
+        refreshObservability: false
+      });
+      recordContinuousStreamResult(result);
+
+      if (result.networkError) {
+        stopContinuousStream('Continuous stream stopped because the gateway became unreachable.');
+        return;
+      }
+
+      const spikeBurst = planRandomSpikeBurst();
+      if (spikeBurst) {
+        continuousStream.spikeBursts += 1;
+        updateContinuousStreamSummary();
+
+        for (let index = 0; index < spikeBurst.size; index += 1) {
+          if (!continuousStream.running || !isRandomSpikeOverlayEnabled()) {
+            break;
+          }
+
+          await waitForMs(randomInt(spikeBurst.profile.minSpacingMs, spikeBurst.profile.maxSpacingMs));
+          if (!continuousStream.running || !isRandomSpikeOverlayEnabled()) {
+            break;
+          }
+
+          const spikeResult = await performAllowRequest(payload, validation.parsed, {
+            pendingText: `Spike burst ${continuousStream.spikeBursts} • extra check ${index + 1} of ${spikeBurst.size}...`,
+            pendingBadgeText: 'Spike',
+            refreshObservability: false
+          });
+          recordContinuousStreamResult(spikeResult, { isSpike: true });
+
+          if (spikeResult.networkError) {
+            stopContinuousStream('Continuous stream stopped because the gateway became unreachable.');
+            return;
+          }
+        }
+      }
+
+      if (continuousStream.running) {
+        const elapsedMs = (window.performance?.now?.() ?? Date.now()) - cycleStartedAt;
+        continuousStream.timer = window.setTimeout(runContinuousStreamIteration, Math.max(0, intervalMs - elapsedMs));
+      }
+    }
+
+    function startContinuousStream() {
+      const status = document.getElementById('status');
+      const payload = currentPayload();
+      const validation = validatePayload(payload);
+      renderValidation(validation.issues);
+
+      if (validation.issues.length) {
+        status.textContent = 'Resolve the validation items before starting the stream.';
+        setText('resultVerdict', 'Fix the form');
+        setText('resultMeta', 'Resolve the validation items before starting a continuous stream.');
+        setText('decisionHeadline', 'Stream blocked locally.');
+        setText('nextStepHint', 'Update the form values above, then start the stream again.');
+        setResultTone('error');
+        return;
+      }
+
+      const intervalMs = parseStreamIntervalMs();
+      if (intervalMs === null) {
+        status.textContent = 'Continuous interval must be at least 50 ms.';
+        setText('resultVerdict', 'Adjust cadence');
+        setText('resultMeta', 'Continuous mode needs an interval of at least 50 ms.');
+        setText('decisionHeadline', 'Stream blocked locally.');
+        setText('nextStepHint', 'Increase the cadence value, then start the stream again.');
+        setResultTone('error');
+        return;
+      }
+
+      continuousStream.running = true;
+      continuousStream.sent = 0;
+      continuousStream.allowed = 0;
+      continuousStream.denied = 0;
+      continuousStream.errors = 0;
+      continuousStream.spikeBursts = 0;
+      continuousStream.spikeRequests = 0;
+      continuousStream.lastObservabilityRefreshSent = 0;
+      updateContinuousStreamSummary();
+      syncRequestControls(false);
+      status.textContent = isRandomSpikeOverlayEnabled()
+        ? `Streaming the current request every ${intervalMs} ms with ${getRandomSpikeProfile().label.toLowerCase()} layered on top.`
+        : `Streaming the current request every ${intervalMs} ms.`;
+      updateRequestRunModeUI();
+      runContinuousStreamIteration();
+    }
+
+    function stopContinuousStream(message = 'Continuous mode is idle.') {
+      if (continuousStream.timer) {
+        window.clearTimeout(continuousStream.timer);
+      }
+      continuousStream.running = false;
+      continuousStream.timer = null;
+      renderValidation(validatePayload(currentPayload()).issues);
+      updateContinuousStreamSummary(message);
+      document.getElementById('status').textContent = message;
+      updateRequestRunModeUI();
     }
 
     function configureHostLinks() {
@@ -2710,10 +2834,10 @@
       document.getElementById('envoyLink').href = `http://${host}:9901`;
       document.getElementById('grpcHost').textContent = `${host}:50051`;
       document.getElementById('streamerLink').href = `http://${host}:8888`;
-      document.getElementById('debugLink').href = `http://${host}:4000`;
+      document.getElementById('debugLink').href = `http://${host}:4001`;
       document.getElementById('alertmanagerLink').href = `http://${host}:9093`;
       document.getElementById('streamerHeroLink').href = `http://${host}:8888`;
-      document.getElementById('debugHeroLink').href = `http://${host}:4000`;
+      document.getElementById('debugHeroLink').href = `http://${host}:4001`;
     }
 
     async function loadObservability() {
@@ -2726,7 +2850,7 @@
         const res = await fetch('/api/observability', { cache: 'no-store' });
         const json = await res.json();
         if (!res.ok) {
-          throw new Error(json.error || 'Unable to load observability data.');
+          throw new Error(json.error || 'Unable to load monitoring data.');
         }
 
         const colors = getComputedStyle(document.documentElement);
@@ -2806,18 +2930,18 @@
 
         renderChart('requestRateChart', 'requestRateMeta', [], {
           valueFormatter: formatRate,
-          emptyMessage: 'Observability data is unavailable at the moment.',
-          emptyMeta: 'Observability data is unavailable at the moment.'
+          emptyMessage: 'Monitoring data is unavailable at the moment.',
+          emptyMeta: 'Monitoring data is unavailable at the moment.'
         });
         renderChart('allowedRateChart', 'allowedRateMeta', [], {
           valueFormatter: formatRate,
-          emptyMessage: 'Observability data is unavailable at the moment.',
-          emptyMeta: 'Observability data is unavailable at the moment.'
+          emptyMessage: 'Monitoring data is unavailable at the moment.',
+          emptyMeta: 'Monitoring data is unavailable at the moment.'
         });
         renderChart('latencyChart', 'latencyMeta', [], {
           valueFormatter: formatMs,
-          emptyMessage: 'Observability data is unavailable at the moment.',
-          emptyMeta: 'Observability data is unavailable at the moment.'
+          emptyMessage: 'Monitoring data is unavailable at the moment.',
+          emptyMeta: 'Monitoring data is unavailable at the moment.'
         });
         setText('requestRateLatest', '--');
         setText('requestRatePeak', '--');
@@ -2825,6 +2949,7 @@
         setText('allowedRateLatest', '--');
         setText('deniedRateLatest', '--');
         setText('denyRatio', '--');
+        setText('decisionHealthRatioValue', '--');
         setText('latencyLatest', '--');
         setText('latencyPeak', '--');
         setText('latencyAverage', '--');
@@ -2849,7 +2974,7 @@
     function renderHealth(services, error) {
       const el = document.getElementById('healthGrid');
       if (error || !services) {
-        el.innerHTML = `<div class="health-error">${escapeHTML(error || 'Unavailable')}</div>`;
+        el.innerHTML = buildEmptyState(error || 'Stack health is unavailable right now.', error ? 'error' : 'neutral');
         return;
       }
       const items = [
@@ -2874,12 +2999,74 @@
 
     let eventSocket = null;
     let eventRows = [];
+    let pendingEventRows = [];
     let totalEventCount = 0;
-    const MAX_EVENT_ROWS = 50;
+    let nextEventId = 1;
+    let eventFeedPaused = false;
+    let selectedEventId = null;
+    const MAX_EVENT_ROWS = 80;
+
+    function formatEventLatency(latencyUs) {
+      return latencyUs < 1000 ? `${latencyUs}µs` : `${(latencyUs / 1000).toFixed(1)}ms`;
+    }
+
+    function describeEventStrategy(event) {
+      if (event.algo === 'token_bucket') {
+        return 'Burst-friendly';
+      }
+      if (event.algo === 'sliding_window') {
+        return 'Strict window';
+      }
+      return 'Unknown';
+    }
+
+    function eventMatchesSearch(event, searchText) {
+      if (!searchText) {
+        return true;
+      }
+      const haystack = [
+        event.ns,
+        event.key,
+        event.instance,
+        event.algo,
+        describeEventStrategy(event),
+        event.allowed ? 'allowed' : 'denied'
+      ].join(' ').toLowerCase();
+      return haystack.includes(searchText);
+    }
+
+    function findEventById(eventId) {
+      return eventRows.find((entry) => entry.__eventId === eventId) ||
+        pendingEventRows.find((entry) => entry.__eventId === eventId) ||
+        null;
+    }
+
+    function updateEventFeedStatus() {
+      const queued = pendingEventRows.length;
+      const counterText = `${totalEventCount} event${totalEventCount !== 1 ? 's' : ''}${queued ? ` • ${queued} queued` : ''}`;
+      setText('eventCounter', counterText);
+      setText(
+        'eventFeedStatus',
+        eventFeedPaused
+          ? queued
+            ? `Paused. ${queued} new event${queued !== 1 ? 's are' : ' is'} queued until you resume.`
+            : 'Paused. New events will queue until you resume.'
+          : 'Showing live events as they arrive.'
+      );
+
+      const pauseBtn = document.getElementById('pauseEventsBtn');
+      if (!pauseBtn) {
+        return;
+      }
+      pauseBtn.textContent = eventFeedPaused ? 'Resume' : 'Pause';
+      pauseBtn.setAttribute('aria-pressed', eventFeedPaused ? 'true' : 'false');
+      pauseBtn.classList.toggle('active', eventFeedPaused);
+    }
 
     function initEventStream() {
       const host = window.location.hostname || 'localhost';
-      const wsURL = `ws://${host}:8888/ws/events`;
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsURL = `${wsProtocol}://${host}:8888/ws/events`;
       const statusEl = document.getElementById('wsStatus');
 
       function connect() {
@@ -2899,9 +3086,20 @@
         eventSocket.onmessage = (ev) => {
           try {
             const e = JSON.parse(ev.data);
+            e.__eventId = nextEventId;
+            nextEventId += 1;
             totalEventCount++;
-            eventRows.unshift(e);
-            if (eventRows.length > MAX_EVENT_ROWS) eventRows.pop();
+            if (eventFeedPaused) {
+              pendingEventRows.unshift(e);
+              if (pendingEventRows.length > MAX_EVENT_ROWS) pendingEventRows.pop();
+            } else {
+              eventRows.unshift(e);
+              if (eventRows.length > MAX_EVENT_ROWS) eventRows.pop();
+              if (!selectedEventId) {
+                selectedEventId = e.__eventId;
+              }
+            }
+            updateEventFeedStatus();
             renderEventTable();
           } catch (_) {}
         };
@@ -2915,31 +3113,96 @@
       connect();
     }
 
+    function toggleEventPause() {
+      eventFeedPaused = !eventFeedPaused;
+      if (!eventFeedPaused && pendingEventRows.length) {
+        eventRows = pendingEventRows.concat(eventRows).slice(0, MAX_EVENT_ROWS);
+        pendingEventRows = [];
+        if (!selectedEventId && eventRows[0]) {
+          selectedEventId = eventRows[0].__eventId;
+        }
+      }
+      updateEventFeedStatus();
+      renderEventTable();
+    }
+
     function clearEvents() {
       eventRows = [];
+      pendingEventRows = [];
       totalEventCount = 0;
+      selectedEventId = null;
+      updateEventFeedStatus();
       renderEventTable();
+    }
+
+    function selectEventRow(eventId) {
+      selectedEventId = eventId;
+      renderEventTable();
+    }
+
+    function renderEventDetails() {
+      const body = document.getElementById('eventDetailBody');
+      const meta = document.getElementById('eventDetailMeta');
+      const event = findEventById(selectedEventId);
+
+      if (!event) {
+        body.className = 'event-detail-empty';
+        body.textContent = 'No event selected yet.';
+        meta.textContent = 'Choose a row to inspect the exact event payload.';
+        return;
+      }
+
+      const time = new Date(Number(event.ts || 0)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const latency = formatEventLatency(event.latency_us || 0);
+      const result = event.allowed ? 'Allowed' : 'Denied';
+      const strategy = describeEventStrategy(event);
+      const retryDelay = Number.isFinite(Number(event.retry_ms)) ? `${Number(event.retry_ms)} ms` : '—';
+      meta.textContent = `${time} • ${result} • ${strategy}`;
+      body.className = 'event-detail-content';
+      body.innerHTML = `
+        <div class="event-detail-grid">
+          <div class="event-detail-item"><strong>Time</strong><span>${escapeHTML(time)}</span></div>
+          <div class="event-detail-item"><strong>Traffic group</strong><span>${escapeHTML(event.ns || '—')}</span></div>
+          <div class="event-detail-item"><strong>Subject</strong><span><code>${escapeHTML(event.key || '—')}</code></span></div>
+          <div class="event-detail-item"><strong>Strategy</strong><span>${escapeHTML(strategy)}</span></div>
+          <div class="event-detail-item"><strong>Result</strong><span>${escapeHTML(result)}</span></div>
+          <div class="event-detail-item"><strong>Remaining</strong><span>${escapeHTML(String(event.remaining ?? '—'))}</span></div>
+          <div class="event-detail-item"><strong>Retry delay</strong><span>${escapeHTML(retryDelay)}</span></div>
+          <div class="event-detail-item"><strong>Latency</strong><span>${escapeHTML(latency)}</span></div>
+          <div class="event-detail-item event-detail-item-wide"><strong>Instance</strong><span><code>${escapeHTML(event.instance || '—')}</code></span></div>
+        </div>
+        <pre class="event-detail-json">${escapeHTML(JSON.stringify(event, null, 2))}</pre>
+      `;
     }
 
     function renderEventTable() {
       const filter = document.getElementById('evtFilterResult').value;
+      const searchText = document.getElementById('eventSearch').value.trim().toLowerCase();
       const tbody = document.getElementById('eventTableBody');
-      document.getElementById('eventCounter').textContent = `${totalEventCount} event${totalEventCount !== 1 ? 's' : ''}`;
+      updateEventFeedStatus();
 
-      const rows = filter ? eventRows.filter(e => (filter === 'allowed') === e.allowed) : eventRows;
+      const rows = eventRows.filter((event) => {
+        const filterMatch = !filter || (filter === 'allowed') === event.allowed;
+        return filterMatch && eventMatchesSearch(event, searchText);
+      });
       if (rows.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="event-empty">${
-          filter ? 'No matching events yet.' : 'Waiting for events — submit a request or run generate_traffic.sh.'
+          filter || searchText ? 'No matching events.' : 'No live events yet.'
         }</td></tr>`;
+        selectedEventId = null;
+        renderEventDetails();
         return;
+      }
+      if (!rows.some((event) => event.__eventId === selectedEventId)) {
+        selectedEventId = rows[0].__eventId;
       }
       tbody.innerHTML = rows.map(e => {
         const time = new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const algo = e.algo === 'token_bucket' ? 'TB' : 'SW';
+        const algo = describeEventStrategy(e);
         const algoClass = e.algo === 'token_bucket' ? 'pill-tb' : 'pill-sw';
-        const lat = e.latency_us < 1000 ? `${e.latency_us}µs` : `${(e.latency_us / 1000).toFixed(1)}ms`;
+        const lat = formatEventLatency(e.latency_us || 0);
         const inst = (e.instance || '—').slice(0, 12);
-        return `<tr>
+        return `<tr class="${selectedEventId === e.__eventId ? 'active' : ''}" onclick="selectEventRow(${e.__eventId})">
           <td>${escapeHTML(time)}</td>
           <td>${escapeHTML(e.ns || '—')}</td>
           <td><code>${escapeHTML(e.key || '—')}</code></td>
@@ -2950,9 +3213,11 @@
           <td><code title="${escapeHTML(e.instance || '')}">${escapeHTML(inst)}</code></td>
         </tr>`;
       }).join('');
+      renderEventDetails();
     }
 
     document.getElementById('evtFilterResult').addEventListener('change', renderEventTable);
+    document.getElementById('eventSearch').addEventListener('input', renderEventTable);
 
     // ── Active Alerts ─────────────────────────────────────────────────
 
@@ -2964,14 +3229,14 @@
         renderAlerts(Array.isArray(json) ? json : []);
       } catch (err) {
         document.getElementById('alertsList').innerHTML =
-          `<div class="alerts-empty">${escapeHTML(String(err))}</div>`;
+          buildEmptyState(String(err), 'error');
       }
     }
 
     function renderAlerts(alerts) {
       const el = document.getElementById('alertsList');
       if (!alerts.length) {
-        el.innerHTML = '<div class="alerts-empty">No active alerts — all clear.</div>';
+        el.innerHTML = buildEmptyState('No active alerts right now.', 'success');
         return;
       }
       el.innerHTML = alerts.map(a => {
@@ -3001,14 +3266,14 @@
         renderLogs(Array.isArray(json) ? json : []);
       } catch (err) {
         const el = document.getElementById('logsList');
-        el.innerHTML = `<div class="log-line"><span class="log-msg" style="color:#f44747">${escapeHTML(String(err))}</span></div>`;
+        el.innerHTML = buildEmptyState(String(err), 'error');
       }
     }
 
     function renderLogs(logs) {
       const el = document.getElementById('logsList');
       if (!logs.length) {
-        el.innerHTML = `<div class="log-line"><span class="log-msg" style="color:#5a7a9a">No recent log lines. Generate some traffic to populate logs.</span></div>`;
+        el.innerHTML = buildEmptyState('No recent log lines yet.', 'neutral');
         return;
       }
       el.innerHTML = logs.slice(0, 40).map(entry => {
@@ -3071,37 +3336,129 @@
       </table>`;
     }
 
-    async function chaosAction(btn, endpoint) {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      const original = btn.textContent;
-      btn.textContent = '…';
+    function promptChaosAction(actionKey) {
+      const action = chaosActionDefinitions[actionKey];
+      if (!action) {
+        return;
+      }
+      pendingChaosActionKey = actionKey;
+      setText('chaosConfirmTitle', action.title);
+      setText('chaosConfirmText', action.description);
+      const confirmBtn = document.getElementById('chaosConfirmSubmit');
+      confirmBtn.textContent = action.confirmLabel;
+      confirmBtn.className = `chaos-btn ${action.tone}`;
+      document.getElementById('chaosConfirm').hidden = false;
+      document.getElementById('chaosResult').textContent = '';
+    }
+
+    function cancelChaosAction() {
+      pendingChaosActionKey = '';
+      document.getElementById('chaosConfirm').hidden = true;
+    }
+
+    async function runChaosAction(button, action) {
+      if (button.disabled) return;
+      button.disabled = true;
+      const original = button.textContent;
+      button.textContent = '…';
       const resultEl = document.getElementById('chaosResult');
       resultEl.textContent = '';
       try {
-        const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const res = await fetch(action.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'request failed');
-        btn.textContent = '✓ Done';
+        button.textContent = '✓ Done';
         const detail = json.killed || json.restored?.length != null ? ` (${json.killed || json.restored?.length + ' restored'})` : '';
-        resultEl.textContent = `Success${detail}`;
+        resultEl.textContent = `${action.title} complete${detail}`;
         setTimeout(() => loadChaosStatus(), 1000);
       } catch (err) {
-        btn.textContent = '✗ Failed';
+        button.textContent = '✗ Failed';
         resultEl.textContent = String(err);
       }
       setTimeout(() => {
-        btn.textContent = original;
-        btn.disabled = false;
-        resultEl.textContent = '';
+        button.textContent = original;
+        button.disabled = false;
       }, 2500);
     }
+
+    async function confirmChaosAction() {
+      const action = chaosActionDefinitions[pendingChaosActionKey];
+      if (!action) {
+        return;
+      }
+      const confirmBtn = document.getElementById('chaosConfirmSubmit');
+      await runChaosAction(confirmBtn, action);
+      cancelChaosAction();
+    }
+
+    function setActiveSidebarLink(hash) {
+      const fallbackHash = requestViewMode === 'basic' && isAdvancedSectionHash(hash)
+        ? '#requests'
+        : (hash || '#requests');
+      document.querySelectorAll('.sidebar-link').forEach((link) => {
+        link.classList.toggle('active', link.getAttribute('href') === fallbackHash);
+      });
+    }
+
+    function initSidebarTracking() {
+      const sections = ['#overview', '#requests', '#observability', '#events', '#chaos']
+        .map((hash) => ({ hash, element: document.querySelector(hash) }))
+        .filter((entry) => entry.element);
+
+      const observer = new IntersectionObserver((entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) {
+          setActiveSidebarLink(`#${visible.target.id}`);
+        }
+      }, {
+        rootMargin: '-18% 0px -55% 0px',
+        threshold: [0.2, 0.35, 0.6]
+      });
+
+      sections.forEach(({ element }) => observer.observe(element));
+
+      document.querySelectorAll('.sidebar-link').forEach((link) => {
+        link.addEventListener('click', (event) => {
+          if (link.classList.contains('is-disabled')) {
+            event.preventDefault();
+            return;
+          }
+          const hash = link.getAttribute('href') || '';
+          setActiveSidebarLink(hash);
+          syncRequestViewModeForHash(hash);
+          syncSidebarContextForHash(hash);
+        });
+      });
+    }
+
+    window.addEventListener('hashchange', () => {
+      setActiveSidebarLink(window.location.hash);
+      syncRequestViewModeForHash(window.location.hash);
+      syncSidebarContextForHash(window.location.hash);
+    });
 
     // ── Initialisation ────────────────────────────────────────────────
 
     configureHostLinks();
+    initPersistedDrawers();
+    document.querySelectorAll('.view-mode-toggle, .run-mode-toggle').forEach(syncModeToggleTrack);
     renderHistory();
-    applyScenario('token');
+    setRequestViewMode(loadRequestViewMode());
+    if (!restoreFormState()) {
+      setRequestRunMode('single');
+      applyScenario('token');
+    }
+    updateRandomSpikeHint();
+    updateContinuousStreamSummary();
+    setResultTone('idle');
+    updateEventFeedStatus();
+    renderEventDetails();
+    initSidebarTracking();
+    setActiveSidebarLink(window.location.hash || '#requests');
+    syncRequestViewModeForHash(window.location.hash);
+    syncSidebarContextForHash(window.location.hash);
 
     loadObservability();
     loadServiceHealth();

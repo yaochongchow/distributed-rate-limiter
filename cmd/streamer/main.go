@@ -46,14 +46,14 @@ import (
 var dashboardHTML string
 
 const (
-	streamKey       = "rl:events"
-	groupName       = "streamer"
-	clientBufSize   = 256
-	centralBufSize  = 2000
-	maxPendingAge   = 30 * time.Second
-	readBatchSize   = 100
-	blockTimeout    = 1 * time.Second
-	streamMaxLen    = 50000
+	streamKey      = "rl:events"
+	groupName      = "streamer"
+	clientBufSize  = 256
+	centralBufSize = 2000
+	maxPendingAge  = 30 * time.Second
+	readBatchSize  = 100
+	blockTimeout   = 1 * time.Second
+	streamMaxLen   = 50000
 )
 
 // Event is the parsed form of a Redis Streams message.
@@ -160,6 +160,7 @@ func newStreamer(rdb *redis.ClusterClient, dispatcher *Dispatcher) *Streamer {
 func (s *Streamer) ensureGroup(ctx context.Context) {
 	err := s.rdb.XGroupCreateMkStream(ctx, streamKey, groupName, "$").Err()
 	if err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {
+		limiter.ReloadClusterStateOnError(s.rdb, err)
 		log.Warn().Err(err).Msg("xgroup create")
 	}
 }
@@ -175,6 +176,7 @@ func (s *Streamer) reclaimPending(ctx context.Context) {
 		Count:  500,
 	}).Result()
 	if err != nil {
+		limiter.ReloadClusterStateOnError(s.rdb, err)
 		return
 	}
 	for _, p := range pending {
@@ -226,6 +228,7 @@ func (s *Streamer) run(ctx context.Context) {
 			if err == redis.Nil || strings.Contains(err.Error(), "context") {
 				continue
 			}
+			limiter.ReloadClusterStateOnError(s.rdb, err)
 			log.Warn().Err(err).Msg("xreadgroup error — retrying")
 			time.Sleep(500 * time.Millisecond)
 			continue

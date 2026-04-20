@@ -33,6 +33,9 @@ import (
 //go:embed index.html
 var indexHTML string
 
+//go:embed styles.css
+var stylesCSS string
+
 type allowReq struct {
 	Namespace string `json:"namespace"`
 	Key       string `json:"key"`
@@ -152,10 +155,24 @@ func newMux(client ratelimitv1.RateLimitServiceClient, promURL, debugDashURL, st
 	promClient := &http.Client{Timeout: 3 * time.Second}
 	proxyClient := &http.Client{Timeout: 5 * time.Second}
 
+	disableCache := func(w http.ResponseWriter) {
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+	}
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		disableCache(w)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(indexHTML))
+	})
+
+	mux.HandleFunc("/styles.css", func(w http.ResponseWriter, r *http.Request) {
+		disableCache(w)
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(stylesCSS))
 	})
 
 	mux.HandleFunc("/api/allow", func(w http.ResponseWriter, r *http.Request) {
@@ -210,7 +227,12 @@ func newMux(client ratelimitv1.RateLimitServiceClient, promURL, debugDashURL, st
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
 			return
 		}
-		_ = json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"allowed":        resp.GetAllowed(),
+			"remaining":      resp.GetRemaining(),
+			"retry_after_ms": resp.GetRetryAfterMs(),
+			"algorithm_used": resp.GetAlgorithmUsed(),
+		})
 	})
 
 	mux.HandleFunc("/api/observability", func(w http.ResponseWriter, r *http.Request) {

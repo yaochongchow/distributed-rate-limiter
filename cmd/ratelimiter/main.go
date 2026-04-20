@@ -101,6 +101,7 @@ func (p *StreamPublisher) run() {
 			}).Err()
 			cancel()
 			if err != nil {
+				limiter.ReloadClusterStateOnError(p.rdb, err)
 				log.Warn().Err(err).Msg("stream publish failed")
 			}
 		case <-p.stopCh:

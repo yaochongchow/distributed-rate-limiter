@@ -19,6 +19,8 @@ This project exposes a gRPC `Allow` API backed by Redis Cluster and wraps it wit
 - **Loki + Promtail** — log aggregation; Promtail tails Docker container logs and ships structured JSON fields to Loki
 - **Tempo** — distributed tracing backend receiving OTLP spans from Go services
 
+See the full architecture diagram in [docs/architecture.md](docs/architecture.md).
+
 ## Quick Start
 
 ### 1. Start the stack
@@ -35,14 +37,14 @@ The Redis cluster initializes automatically. All other services wait for it befo
 |---|---|---|
 | **Web UI** | http://localhost:8080 | All-in-one interface — playground, events, health, alerts, logs, chaos |
 | Event Stream | http://localhost:8888 | Standalone real-time WebSocket dashboard |
-| Debug Dashboard | http://localhost:4000 | Standalone debug service UI |
+| Debug Dashboard | http://localhost:4001 | Standalone debug service UI |
 | Grafana | http://localhost:3000 | Pre-provisioned dashboards — login `admin` / `admin` |
 | Prometheus | http://localhost:9091 | Raw metrics and query explorer |
 | AlertManager | http://localhost:9093 | Active alerts and silences |
 | Envoy Admin | http://localhost:9901 | Proxy stats and cluster health |
 | gRPC endpoint | `localhost:50051` | Direct gRPC access via Envoy |
 
-> **Port conflicts**: any host port can be overridden at startup, for example `WEBUI_PORT=8081 GRAFANA_PORT=3001 docker compose up -d --build`.
+> **Port conflicts**: any host port can be overridden at startup, for example `WEBUI_PORT=8081 GRAFANA_PORT=3001 DEBUG_DASHBOARD_PORT=4002 docker compose up -d --build`.
 
 ### 3. Scale the rate limiter
 
@@ -398,7 +400,7 @@ All services are configured via environment variables. Key variables:
 Host ports can all be overridden via `docker compose` environment variables:
 
 ```bash
-WEBUI_PORT=8081 GRAFANA_PORT=3001 PROMETHEUS_PORT=9092 docker compose up -d --build
+WEBUI_PORT=8081 GRAFANA_PORT=3001 PROMETHEUS_PORT=9092 DEBUG_DASHBOARD_PORT=4002 docker compose up -d --build
 ```
 
 ## Troubleshooting

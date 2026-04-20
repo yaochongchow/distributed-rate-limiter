@@ -47,6 +47,7 @@ func (l *Limiter) TokenBucket(ctx context.Context, key string, capacity int64, r
 		cost,
 	).Result()
 	if err != nil {
+		ReloadClusterStateOnError(l.rdb, err)
 		return Result{}, err
 	}
 
@@ -76,6 +77,7 @@ func (l *Limiter) SlidingWindow(ctx context.Context, key string, limit int64, wi
 		cost,
 	).Result()
 	if err != nil {
+		ReloadClusterStateOnError(l.rdb, err)
 		return Result{}, err
 	}
 
